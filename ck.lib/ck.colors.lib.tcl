@@ -117,17 +117,6 @@ proc ::ck::colors::color {args} {
     }
   }
 }
-#proc ::ck::colors::cformat { ctype text } {
-#  variable f2m
-#  variable f2a
-#  variable f2e
-#  switch -glob -- $ctype {
-#    "*ansi*" { set ctype $f2a }
-#    "*no*"   { set ctype $f2e }
-#    default  { set ctype $f2m }
-#  }
-#  return [string map $ctype $text]
-#}
 proc ::ck::colors::cformat { text } {
   variable f2m
   return [string map $f2m $text]
