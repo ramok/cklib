@@ -104,6 +104,14 @@ proc ::mans::dbsearch { args } {
   }
   return $result
 }
+proc ::mans::dbcount { args } {
+  variable mans
+  if { ![array exists mans] } { datafile getarray man mans }
+  set mans() [clock seconds]
+  set cnt [llength [luniq [concat [array names mans] [array names ::ck::cmd::cmddoc]]]]
+  # вычитаем 1 на "пустой ман" в котором время апдейта базы
+  return [incr cnt -1]
+}
 proc ::mans::dbupdate {  } {
   variable mans
   if { ![array exists mans] } return
@@ -166,7 +174,11 @@ proc ::mans::run { sid } {
     regsub {^-?\d+\s*} $text {} text
     if { $num < 1 } { set num 1 }
   } {
-    set num 1
+    if { [string trim $text *] eq "" } {
+      set num [rand [dbcount]]
+    } {
+      set num 1
+    }
   }
   if { $text == "" } { set text "*" }
   set mlist [dbsearch -- $text]
