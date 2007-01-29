@@ -203,7 +203,10 @@ proc ::ck::http::parse_headers { sid heads } {
 
   set_ [lindex $heads 0]
   debug -debug "Rcvd HTTP reply: %s" $_
-  if { ![regexp {^[^\s]+\s+(\d\d\d)\s+(.+)$} [lindex $heads 0] - HttpMetaCode HttpMetaMessage] } { return 0 }
+  if { ![regexp {^\S+\s+(\d{3})(?:\s+(.+))?$} [lindex $heads 0] - HttpMetaCode HttpMetaMessage] } {
+    debug -err "while parse headers: %s" [lindex $heads 0]
+    return 0
+  }
   debug -raw "Rcvd headers:"
   foreach_ [lrange $heads 1 end] {
     if { ![regexp {^([^:]+):\s+(.+)$} $_ - k v] } continue
