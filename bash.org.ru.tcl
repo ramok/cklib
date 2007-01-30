@@ -37,9 +37,9 @@ proc ::bashorgru::init {} {
     prequote1 &g|&n %s
     prequote2 &G|&n %s
     tail     &g`-&G----&g-&G--&g--&K-&g-&K----
-    tailx    &g`-&G-&K[&cПродолжение можно прочитать на&B&U %s &U&K]&G---&g-&G--&g--&K-&g-&K----
+    tailx    &g`-&G-&K[&cОстальные &B%s&c строк можно прочитать на &B&U%s&U&K ]&G---&g-&G--&g--&K-&g-&K----
     header.search &g.-&G-&K[&n Поиск&K(&p%s&K):&R%s&K/&r%s&n N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
-    to.private &cЦитата слишком большая &K(&B%s&c строк&K)&n будет отправлена к Вам в приват.
+    to.private &cЦитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c будет отправлена к Вам в приват.
   }
 }
 proc ::bashorgru::run { sid } {
@@ -110,10 +110,10 @@ proc ::bashorgru::run { sid } {
   # если только 1 слово в строке - джойнить, например если только 'ник:' в строке
   regsub -all -nocase {(((<br>)|^)\s*\S+\s*)<br>([^<]+)} $QuoteData {\1 \4} QuoteData
 
-  set $QuoteData [wsplit $QuoteData "<br>"]
+  set QuoteData [wsplit $QuoteData "<br>"]
 
-  if { [llength $QuoteData] >= [config "num.to.private"] && $CmdEvent eq "pub" } {
-    reply to.private [llength $QuoteData]
+  if { [llength $QuoteData] >= [config get "num.to.private"] && $CmdEvent eq "pub" } {
+    reply to.private $QuoteNum [llength $QuoteData]
     session set CmdEvent "msg"
   }
 
@@ -144,7 +144,7 @@ proc ::bashorgru::run { sid } {
     if { [expr rand()] < 0.5 } { set frm "1" } { set frm "2" }
     reply -noperson "prequote$frm" $_
     if { [incr linenum] >= [config get num.max] } {
-      reply -noperson -return tailx "http://bash.org.ru/quote.php?num=$QuoteNum"
+      reply -noperson -return tailx [expr { [llength $QuoteData] } - $linenum] "http://bash.org.ru/quote.php?num=$QuoteNum"
     }
   }
   reply -noperson tail
