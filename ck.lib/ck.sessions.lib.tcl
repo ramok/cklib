@@ -233,7 +233,7 @@ proc ::ck::sessions::hook { hook args } {
   set ::ck::sessions::S${sid}::_session_hook($hook) $prc
 }
 proc ::ck::sessions::event { args } {
-  getargs -sid str "" -lazy flag
+  getargs -sid str "" -lazy flag -return flag
   if { $(sid) eq "" } {
     set sid [uplevel 1 {set sid}]
   } {
@@ -244,6 +244,7 @@ proc ::ck::sessions::event { args } {
     if { $(lazy) } return
     if { [string index $event 0] eq "!" } {
       debug -err "Can't find hook for event <%s>. ignore event." $event
+      if { $(return) } { return -code return }
       return
     }
     set_ [set "::ck::sessions::S${sid}::_session_hook(default)"]
@@ -255,6 +256,7 @@ proc ::ck::sessions::event { args } {
   }
   debug -debug "Run hook for event <%s>" $event
   session enter ${sid}
+  if { $(return) } { return -code return }
 }
 proc ::ck::sessions::destroy { args } {
   variable ses_list
