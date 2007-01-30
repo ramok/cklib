@@ -176,6 +176,7 @@ proc ::mans::run { sid } {
   } {
     if { [string trim $text *] eq "" } {
       set num [rand [dbcount]]
+      incr num
     } {
       set num 1
     }
