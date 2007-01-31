@@ -295,11 +295,27 @@ proc ::ck::config::confset { id value {handle ""} } {
   variable lconf
   variable rconf
 
-  if { ![exists $id] } {
-    debug -err "Trying set unknown variable \(%s\) to \"%s\"." $id $value
-    return
+  if { [string index $id 0] != "." } {
+    set ns [uplevel 1 {namespace current}]
+    foreach_ [array names rconf] {
+      array set {} $rconf($_)
+      if { $(ns) eq $ns && $(lid) eq $id } break
+      unset {}
+    }
+    if { ![array exists {}] } {
+      debug -err "Can't find local config param <%s> for namespace <%s>." $id $ns
+      return
+    }
+    debug -debug "Accessing to local param <%s> in namespace <%s>: %s" $id $ns $_
+    set id $_
+  } {
+    if { ![info exists rconf($id)] } {
+      debug -err "Try access to not exists config param <%s>." $id
+      return
+    }
+    debug -debug "Accessing to param <%s>." $id
+    array set {} $rconf($id)
   }
-  array set {} $rconf($id)
 
   debug -debug "Set new param <%s> to <%s>" $id $value
   if { $(personal) } {
