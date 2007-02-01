@@ -135,6 +135,7 @@ proc ::ck::files::getarray {id arrname {scid ""}} {
 proc ::ck::files::putarray {id arrname {scid ""}} {
   upvar $arrname arr
   set fid [::open [filename $id $scid] w]
+  fconfigure $fid -encoding utf-8
   puts -nonewline $fid [array get arr]
   close $fid
   return 1
