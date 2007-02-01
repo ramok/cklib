@@ -128,9 +128,9 @@ proc ::ck::cmd::cmd {args} {
     register      ::ck::cmd::register \
     doc           ::ck::cmd::regdoc \
     regfilter-pub ::ck::cmd::regfilter-pub \
-    unregister ::ck::cmd::unregister
+    unregister    ::ck::cmd::unregister \
+    invoke        ::ck::cmd::invoke_cmd
 }
-
 proc ::ck::cmd::regdoc { args } {
   variable cmddoc
   getargs \
@@ -167,7 +167,6 @@ proc ::ck::cmd::regfilter-pub { fid fproc } {
   set filters($fid) [array get tflt]
   array init bindmask
 }
-
 # register command.id procedure \
 #   -bind -bindpub -bindmsg -binddcc
 #     биндит на слово
@@ -420,6 +419,42 @@ proc ::ck::cmd::checkaccess { {ret ""} } {
   }
   return 1
 }
+proc ::ck::cmd::invoke_cmd { args } {
+  variable cmds
+  getargs \
+    -event choice [list "-msg" "-dcc" "-pub" "-custom"] \
+    -nick str "" \
+    -userhost str "" \
+    -handle str "" \
+    -channel str "" \
+    -text str "" \
+    -cmdid str "" \
+    -cmddcc str "" \
+    -mark str ""
+
+  array set tcmd $cmds($(cmdid))
+  set CmdAccess   $tcmd(access)
+  set CmdNeedAuth $tcmd(auth)
+  set CmdChannel  $(channel)
+  set StdArgs     [split [string stripspace [string stripcolor $(text)]] { }]
+  set CmdReturn   [list]
+  set CmdConfig   $tcmd(config)
+  set CmdEvent    [lindex {msg dcc pub custom} $(event)]
+
+  session create -proc $tcmd(bind)
+  session import -grab tcmd(namespace) as CmdNamespace \
+    -grab (text) as Text \
+    -grab (handle) as Handle \
+    -grab (cmdid) as CmdId \
+    -grab (cmddcc) as CmdDCC \
+    -grab (channel) as Channel \
+    -grab (nick) as Nick \
+    -grab (userhost) as UserHost \
+    -grab (mark) as CmdEventMark \
+    -grablist [list CmdEvent StdArgs CmdAccess CmdNeedAuth CmdChannel CmdReturn CmdConfig]
+  # на доступ к команде и autousage проверки нет, предполагается что если делается invoke, тогда все проверки уже сделаны
+  session event CmdPass
+}
 proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {CmdDCC ""} } {
   variable cmds
   array set tcmd $cmds($CmdId)
@@ -430,12 +465,12 @@ proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {
   set StdArgs [split [string stripspace [string stripcolor $Text]] { }]
   set CmdReturn  [list]
   set CmdConfig   $tcmd(config)
+  set CmdEventMark ""
 
   session create -proc $tcmd(bind)
   session import -grab tcmd(namespace) as CmdNamespace \
     -grablist [list CmdEvent Text Handle CmdId StdArgs CmdDCC Channel CmdAccess CmdNeedAuth CmdChannel \
-      Nick UserHost CmdReturn CmdConfig]
-#  session hook !onDestroy end_of_cmd
+      Nick UserHost CmdReturn CmdConfig CmdEventMark]
   if { ![checkaccess] } {
     session destroy
   } elseif { [llength $StdArgs] < 2 && $tcmd(autousage) } {
@@ -454,7 +489,8 @@ proc ::ck::cmd::replydoc { args } {
 }
 proc ::ck::cmd::reply { args } {
   upvar sid sid
-
+  session export CmdReplyParam*
+  if { [info exists CmdReplyParam] } { set args [concat $CmdReplyParam $args] }
   getargs \
     -noperson flag \
     -return flag \
@@ -463,6 +499,7 @@ proc ::ck::cmd::reply { args } {
     -broadcast flag \
     -doc str "" \
     -uniq flag \
+    -bcast-targ list [list] \
     -multi int 1
 
   if { $(doc) ne "" } {
@@ -505,11 +542,11 @@ proc ::ck::cmd::reply { args } {
         put$mode "NOTICE [session set Nick] :$txt"
       } {
 	if { $(broadcast) } {
-	  set chans [cmdchans [session set CmdId]]
+	  if { ![llength $(bcast-targ)] } { set (bcast-targ) [cmdchans [session set CmdId]] }
 	  if { [::ck::config::config get "pub.multitarget"] } {
-	    put$mode "PRIVMSG [join $chans {,}] :$txt"
+	    put$mode "PRIVMSG [join $(bcast-targ) {,}] :$txt"
 	  } {
-	    foreach_ $chans {
+	    foreach_ $(bcast-targ) {
 	      put$mode "PRIVMSG $_ :$txt"
 	    }
 	  }
