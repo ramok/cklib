@@ -21,6 +21,8 @@ proc ::botnetstat::init { } {
     -desc "File where save bots tree." -access "n" -folder "bnstat"
   config register -id file.data -default "botnet.data.php" -type str \
     -desc "File where save additional data about bot." -access "n" -folder "bnstat"
+  config register -id file.encoding -default utf-8 -type encoding \
+    -desc "Encoding for output files." -access "n" -folder "bnstat"
   cache register -maxrec 1000 -ttl 0
   etimer -norestart -interval [config get .bnstat.update] ::botnetstat::update
 }
@@ -112,7 +114,7 @@ proc ::botnetstat::update { {sid ""} } {
     debug -err "Error while save tree data to file <%s>." $fn
     return
   }
-  fconfigure $fid -encoding utf-8
+  fconfigure $fid -encoding [config get "file.encoding"]
   puts $fid [join $d "\n"]
   close $fid
   debug -debug "Tree data saved to file <%s>." $fn
@@ -292,13 +294,13 @@ proc ::botnetstat::rebuild { sid } {
     debug -err "Error while save data data to file <%s>." $fn
     return
   }
-  fconfigure $fid -encoding utf-8
+  fconfigure $fid -encoding [config get "file.encoding"]
   puts $fid [join $d "\n"]
   close $fid
   debug -debug "Bots data saved to file <%s>." $fn
 }
 proc ::botnetstat::chkconfig { mode var oldv newv hand } {
-  if { $mode ne "set" } return
+  if { ![string equal -length 3 $mode "set"] } return
   etimer -interval $newv ::botnetstat::update
   return
 }
