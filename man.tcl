@@ -77,7 +77,7 @@ proc ::mans::regman { args } {
 proc ::mans::dbsearch { args } {
   variable mans
 
-  getargs -exact flag
+  getargs -exact flag -local flag
 
   if { ![array exists mans] } { datafile getarray man mans }
   set mans() [clock seconds]
@@ -92,7 +92,12 @@ proc ::mans::dbsearch { args } {
     return $mans($mid)
   }
   set result [list]
-  foreach_ [lsort -dictionary [concat [array names mans] [array names ::ck::cmd::cmddoc]]] {
+  if { $(local) } {
+    set mlist [array names mans]
+  } {
+    set mlist [luniq [concat [array names mans] [array names ::ck::cmd::cmddoc]]]
+  }
+  foreach_ [lsort -dictionary $mlist] {
     if { $_ == "" } continue
     if { [string match -nocase $mid $_] } {
       if { [info exists mans($_)] } {
@@ -137,7 +142,7 @@ proc ::mans::run { sid } {
     checkaccess -return
     # запрос на удаление
     if { $val == "" } {
-      set mid [dbsearch -- $var]
+      set mid [dbsearch -local -- $var]
       if { ![llength $mid] } { reply -err err.no.page }
       if { [llength $mid] > 1 } { reply -err err.few.page [cjoin [list2titles $mid] err.few.page.j]  }
       set mid [lindex [lindex $mid 0] 0]
