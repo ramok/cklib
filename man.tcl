@@ -22,7 +22,7 @@ namespace eval mans {
 
 proc ::mans::init {  } {
 
-  datafile register man
+  datafile register man -bot -net
 
   etimer -interval 10 ::mans::dbcleanup
 
