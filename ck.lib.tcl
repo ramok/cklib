@@ -1,6 +1,6 @@
 
 namespace eval ::ck {
-  variable version       "0.2"
+  variable version       0.3
   variable datapath      "data"
   variable scriptpath    [list "scripts2" "scripts" "."]
   variable modulepath    [list [file join "scripts2" "ck.lib"] "scripts2" [file join "scripts" "ck.lib"] "ck.lib" "scripts" "."]
@@ -30,6 +30,7 @@ proc ::ck::init {} {
   variable ircencoding
 
   variable loaded
+  variable version
 
   # TODO: нужно обнулить этот массив, потому как не обновляются автоматически
   #  те скрипты которые изменились, но загружаются автоматичеески
@@ -81,9 +82,9 @@ proc ::ck::init {} {
 
 
   ### Load code modules
-  ::ck::require core
+  if { [catch {require core 0.3}] } { catch { unset version }; return }
   namespace import -force ::ck::core::*
-  namespace export getargs cmdargs frm frmexists msgreg uidns
+  namespace export getargs cmdargs frm frmexists msgreg uidns min max
   ::ck::require strings
   ::ck::require lists
   ::ck::require files
@@ -99,7 +100,7 @@ proc ::ck::init {} {
   ::ck::require -ircservices
 
 #  frmload
-  debug "ck.lib v%s: initalization successfully." $::ck::version
+  debug "ck.lib v%s: initialization successfully." $::ck::version
 }
 # levels:
 #  -9 - debug
@@ -108,6 +109,7 @@ proc ::ck::init {} {
 #   5 - warning
 #   9 - error
 proc ::ck::debug { args } {
+  set _errinfo $::errorInfo
   set quiet 0
   switch -glob -- [lindex $args 0] {
     -raw*   { set level -20 }
@@ -127,6 +129,7 @@ proc ::ck::debug { args } {
   if { [llength $args] > 1 } {
     if { [catch [concat format $args] errStr] } {
       debug -err "Error while formating error message \(%s\). Args: %s" $errStr $args
+      set ::errorInfo $_errinfo
       return
     }
     set txt $errStr
@@ -154,6 +157,7 @@ proc ::ck::debug { args } {
     }
   }
   if { $level < $req_level  } {
+    set ::errorInfo $_errinfo
     return
   }
   set txt [string map [list {&} {&&}] $txt]
@@ -219,6 +223,7 @@ proc ::ck::debug { args } {
 #    putlog [format "  msg: %s" $txt]
 #  } {
 #  }
+  set ::errorInfo $_errinfo
 }
 proc ::ck::uid {{pfix ""}} {
   if { $pfix != "" } { append pfix "#" }
@@ -228,6 +233,10 @@ proc ::ck::procexists { procname } {
   if { [info procs $procname] == "" } { return 0 } { return 1 }
 }
 proc ::ck::source { fn { apath - } } {
+  if { ![info exists ::ck::version] } {
+    debug -err "Can't load script <%s>, ck.lib is not initialized." $fn
+    return
+  }
   if { [string index $fn 0] eq "-" } {
     set fn [string range $fn 1 end]
     set lazy "-"

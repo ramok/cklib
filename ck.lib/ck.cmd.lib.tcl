@@ -5,6 +5,7 @@
 #  ERR_SYNTAX   - ошибка синтаксиса вызова команды
 #  ERR_INTERNAL - ошибка скрипта
 #    ?string?       - сообщение об ошибке
+::ck::require core 0.3
 ::ck::require eggdrop  0.2
 ::ck::require colors   0.2
 ::ck::require config   0.2
@@ -12,7 +13,7 @@
 ::ck::require sessions 0.2
 
 namespace eval ::ck::cmd {
-  variable version 0.2
+  variable version 0.3
   variable author  "Chpock <chpock@gmail.com>"
 
   variable debug -20
@@ -28,7 +29,7 @@ namespace eval ::ck::cmd {
   namespace export cmd cmdchans cmd_checkchan
   namespace export cformat cjoin cquote cmark
   namespace export reply replydoc checkaccess
-  namespace export debug msgreg uidns getargs etimer fixenc* backenc*
+  namespace export debug msgreg uidns getargs etimer fixenc* backenc* min max
   namespace export session
   namespace export config
   namespace export datafile

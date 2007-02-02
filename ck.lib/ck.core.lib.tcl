@@ -3,8 +3,8 @@
 #   - return list by splitting <string> with <substring>
 
 namespace eval ::ck::core {
-  variable version 0.2
-  namespace export getargs cmdargs frm frmexists msgreg uidns
+  variable version 0.3
+  namespace export getargs cmdargs frm frmexists msgreg uidns min max
   namespace import -force ::ck::debug
 }
 
@@ -237,6 +237,14 @@ proc ::ck::core::uidns { {pfix ""} } {
     return [incr "${ns}::_ck_uid_$pfix"]
   }
   return [set "${ns}::_ck_uid_$pfix" 0]
+}
+proc ::ck::core::max { args } {
+  if { [llength $args] == 1 } { set args [lindex $args 0] }
+  return [lindex [lsort -real $args] end]
+}
+proc ::ck::core::min { args } {
+  if { [llength $args] == 1 } { set args [lindex $args 0] }
+  return [lindex [lsort -real $args] 0]
 }
 proc _array { args } {
   if { [string equal -nocase "init" [lindex $args 0]] } {
