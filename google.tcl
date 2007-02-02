@@ -123,9 +123,9 @@ proc ::google::parse { data } {
     set mb ""
   }
   set_ [list $snum $mnum $onum $mb]
-  while { [regexp {<a class=l\s+href="(.+?)"[^>]+>(.+)$} $data - a1 a2] } {
+  while { [regexp {<div><a\s[^>]*?href="(.+?)"[^>]*>(.+)$} $data - a1 a2] } {
     regexp {^(.+?)</a>(.+?)<span(.+)$} $a2 - a2 a3 data
-    regfilter {.*?<td class=j>} a3
+    regfilter {.*?<td\s[^>]+>} a3
     lappend_ [list $a1 $a2 $a3]
   }
   return $_
