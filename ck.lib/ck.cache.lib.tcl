@@ -183,8 +183,11 @@ proc ::ck::cache::get { args } {
 
   if { [isdisabled $CacheID] } { return 0 }
 
+  set ttl [getparam ttl $CacheID]
+
   foreach_ [readindex $CacheID] {
     if { [lindex_ 0] eq $CacheUID } {
+      if { $ttl > 0 && [expr { [clock seconds] - [lindex_ 1] }] > $ttl } continue
       set fn [lindex_ 2]
       break
     }
