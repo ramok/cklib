@@ -65,7 +65,7 @@ proc ::ck::eggdrop::puthelp { txt args } {
 }
 namespace eval ::ck::eggdrop {
   makeproc getuser setuser channels channel onchan passwdok chattr \
-    userlist getchanhost \
+    userlist getchanhost chanlist \
     putserv puthelp \
     dcclist console matchattr \
     unames modules traffic \
