@@ -45,7 +45,7 @@ encoding system utf-8
 #   - return <string> decoded from base64
 
 namespace eval ::ck::strings {
-  variable version 0.2
+  variable version 0.3
   variable author "Chpock <chpock@gmail.com>"
 
   variable const
@@ -214,6 +214,12 @@ proc ::ck::strings::rus2trans {str} {
     }
   }
   return [::ck::strings::string map $const(lr2t) [join $xstr ""]]
+}
+proc ::ck::strings::trans2rus { args } {
+  set str [lindex $args 0]
+  return [string map \
+    {sch щ sh' щ sh ш zh ж ya я ch ч ck к yu ю i и j й c ц y й u у k к e е n н g г w в z з x х h х ' ь f ф v в a а p п r р o о l л
+       d д s с m м t т b б} $str]
 }
 proc ::ck::strings::isnum { args } {
   getargs -type choice [list "-int" "-float"] -unsig flag
