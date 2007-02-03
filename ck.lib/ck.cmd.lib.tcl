@@ -13,7 +13,7 @@
 ::ck::require sessions 0.2
 
 namespace eval ::ck::cmd {
-  variable version 0.3
+  variable version 0.4
   variable author  "Chpock <chpock@gmail.com>"
 
   variable debug -20
@@ -45,6 +45,7 @@ proc ::ck::cmd::init {} {
   variable floodctl_timer
   variable version
   variable cmddoc
+  variable doc_handler
 
   config register -id "prefix.pub" -type str -default "!" \
     -desc "Prefix for public cmds." -access "m" -folder "mod.cmd" -hook ::ck::cmd::cfg_resetbinds
@@ -57,6 +58,7 @@ proc ::ck::cmd::init {} {
   config register -id "pub.multitarget" -type bool -default 0 \
     -desc "Allow multitarget public msgs." -folder "mod.cmd"
 
+  catch { unset doc_handler }
   array init cmds
   array init filters
   array init bindmask
@@ -126,11 +128,16 @@ proc ::ck::cmd::floodcheck {id} {
 }
 proc ::ck::cmd::cmd {args} {
   cmdargs \
-    register      ::ck::cmd::register \
-    doc           ::ck::cmd::regdoc \
-    regfilter-pub ::ck::cmd::regfilter-pub \
-    unregister    ::ck::cmd::unregister \
-    invoke        ::ck::cmd::invoke_cmd
+    register       ::ck::cmd::register \
+    doc            ::ck::cmd::regdoc \
+    regfilter-pub  ::ck::cmd::regfilter-pub \
+    regdoc_handler ::ck::cmd::regdoc_handler \
+    unregister     ::ck::cmd::unregister \
+    invoke         ::ck::cmd::invoke_cmd
+}
+proc ::ck::cmd::regdoc_handler { aproc } {
+  variable doc_handler
+  set doc_handler $aproc
 }
 proc ::ck::cmd::regdoc { args } {
   variable cmddoc
@@ -482,10 +489,32 @@ proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {
   }
 }
 proc ::ck::cmd::replydoc { args } {
+  variable doc_handler
+  variable cmddoc
   upvar sid sid
 
   set doc [lindex $args 0]
-  debug "Reply with doc: $doc"
+  if { [info exists doc_handler] } {
+    session insert ReplyWithDoc $doc
+    if { [catch [list $doc_handler $sid] errStr] } {
+      debug -err "while exec doc-handler proc <%s>: %s" $doc_handler $errStr
+      foreach_ [split $::errorInfo "\n"] { debug -err- "  $_" }
+      debug -debug "Fall back to default doc-handle..."
+    } {
+      return -code return
+    }
+  }
+  if { ![info exists cmddoc($doc)] } {
+    debug -err "Requested doc <%s>, but I don't have this one."
+    return -code return
+  }
+  set stoplist [list $doc]; set_ [lindex $cmddoc($doc) 2]
+  while { [info exists cmddoc($_)] } {
+    if { [lexists $stoplist [lindex $cmddoc($_) 2]] } break
+    lappend stoplist $_
+    set_ [lindex $cmddoc($_) 2]
+  }
+  reply "%s" [cmark [lindex $cmddoc([lindex $stoplist end]) 2]]
   return -code return
 }
 proc ::ck::cmd::reply { args } {
