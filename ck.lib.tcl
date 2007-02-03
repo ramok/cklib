@@ -109,7 +109,7 @@ proc ::ck::init {} {
 #   5 - warning
 #   9 - error
 proc ::ck::debug { args } {
-  set _errinfo $::errorInfo
+  if { [info exists ::errorInfo] } { set _errinfo $::errorInfo }
   set quiet 0
   switch -glob -- [lindex $args 0] {
     -raw*   { set level -20 }
@@ -129,7 +129,7 @@ proc ::ck::debug { args } {
   if { [llength $args] > 1 } {
     if { [catch [concat format $args] errStr] } {
       debug -err "Error while formating error message \(%s\). Args: %s" $errStr $args
-      set ::errorInfo $_errinfo
+      if { [info exists _errinfo] } { set ::errorInfo $_errinfo }
       return
     }
     set txt $errStr
@@ -157,7 +157,7 @@ proc ::ck::debug { args } {
     }
   }
   if { $level < $req_level  } {
-    set ::errorInfo $_errinfo
+    if { [info exists _errinfo] } { set ::errorInfo $_errinfo }
     return
   }
   set txt [string map [list {&} {&&}] $txt]
@@ -223,7 +223,7 @@ proc ::ck::debug { args } {
 #    putlog [format "  msg: %s" $txt]
 #  } {
 #  }
-  set ::errorInfo $_errinfo
+  if { [info exists _errinfo] } { set ::errorInfo $_errinfo }
 }
 proc ::ck::uid {{pfix ""}} {
   if { $pfix != "" } { append pfix "#" }
