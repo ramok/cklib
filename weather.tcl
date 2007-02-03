@@ -3,6 +3,7 @@ encoding system utf-8
 ::ck::require cmd
 ::ck::require cache
 ::ck::require http
+::ck::require strings 0.3
 
 namespace eval ::weather {
   variable version 1.0
@@ -20,15 +21,18 @@ proc ::weather::init {  } {
 
   cache register -ttl 3h -maxrec 30
 
-  cmd doc "weather" {~*!weather* [-день] <город>~ - подробная погода на <день> относительно текущего дня.}
+  cmd doc -link "weather.alias" "weather" \
+    {~*!weather* [-день] <город>~ - подробная погода на <день> относительно текущего дня.}
+  cmd doc -link "weather" "weather.alias" \
+    {~*!weather* <псевдоним> = <город>~ - добавление псевдонима для города <город>.}
 
-  cmd register weatherupdate ::weather::update \
-    -bind "weather\.update" -access "n" -config "weather"
   cmd register weather ::weather::run -autousage -doc "weather" \
     -bind "weather" -bind "погода"
 
-  config register -id "admflags" -type str -default "m|" \
+  config register -id "admflags" -type str -default "m" \
     -desc "Flags for access to change weather aliases." -access "n" -folder "weather"
+  config register -id "updflags" -type str -default "n" \
+    -desc "Требуемые флаги для обновление базы городов." -access "n" -folder "weather"
 
   msgreg {
     nocity        &RГород по Вашему запросу не найден.
@@ -44,13 +48,19 @@ proc ::weather::init {  } {
     join          " &K// "
     main          &g%s %s
 
+    alias.remove  &BУдалены псевдоним(ы):&R %s
+    alias.removej "&K, &R"
+    alias.add     &BДобавлен псевдоним &K<&r%s&K>&B как синоним &K<&R%s&K>&B.
+
     err.parse     &RОшибка получения данных о погоде в &Bг.%s
     err.nodata    &cНет данных о погоде в &Bг.%s&c на запрашиваемый период.
+    err.noalias   &RПсевдонимы по маске &K<&B%s&K>&R не найдены.
 
     upd.try       &BПытаюсь обновить базу данных городов для погоды...
     err.upd.http  &RОшибка связи с сервером.
     err.upd.pars  &RОшибка разбора данных полученных от сервера.
     upd.done      &BОбновление успешно завершено. В базе &R%s&B городов.
+    err.needupd   &RВ база городов пуста, пожалуйста сделайте&B !weather update&R.
   }
 }
 
@@ -59,6 +69,39 @@ proc ::weather::run { sid } {
 
   if { $Event eq "CmdPass" } {
     set Request [join [lrange $StdArgs 1 end] { }]
+    if { [regexp {^([^=]+?)\s*=\s*(.*)$} $Request - als trg] } {
+      session insert CmdAccess [config get "admflags"]
+      checkaccess -return
+      set als [string trim $als]
+      if { [set trg [string trim $trg]] eq "" } {
+	set lals [list]
+	set rmals [list]
+	foreach_ [datafile getlist weather.alias] {
+	  if { [string match -nocase $als [lindex_ 0]] } {
+	    lappend rmals [lindex_ 0]
+	  } {
+	    lappend lals $_
+	  }
+	}
+	if { ![llength $rmals] } { reply -err noalias $als }
+	datafile putlist weather.alias $lals
+	reply -return alias.remove [cjoin $rmals alias.removej]
+      }
+      set lals [list]
+      foreach_ [datafile getlist weather.alias] {
+	if { ![string equal -nocase [lindex_ 0] $als] } { lappend lals $_ }
+      }
+      lappend lals [list $als $trg]
+      datafile putlist weather.alias $lals
+      reply -return alias.add $als $trg
+    }
+    if { [string equal -nocase $Request "update"] } {
+      session insert CmdAccess [config get "updflags"]
+      checkaccess -return
+      session hook default ::weather::update
+      update $sid
+      return
+    }
     if { [regexp {[+-](\d)} $Request - WeatherOffset] } {
       regfilter {[+-]\d} Request
       set Request [string trim $Request]
@@ -67,7 +110,9 @@ proc ::weather::run { sid } {
     }
     session insert WeatherOffset $WeatherOffset
     array set {} [searchcity $Request]
-    if { ![llength $(city)] } {
+    if { $(size) < 10 } {
+      reply -err needupd
+    } elseif { ![llength $(city)] } {
       reply -err nocity
     } elseif { [llength $(city)] > 1 } {
       reply -err manymatch [cjoin $(city) manymatchj]
@@ -115,10 +160,13 @@ proc ::weather::searchcity { str } {
   set (num)  [list]
   set str [string tolower $str]
   foreach_ [datafile getlist weather.alias] {
-    if { [lindex_ 0] == $str } { set str [lindex_ 1]; break }
+    if { [lindex_ 0] == $str } { set lstr [list [lindex_ 1]]; break }
   }
-  set lstr [list $str]
-  foreach_ [datafile getlist weather.citys] {
+  if { ![info exists lstr] } {
+    set lstr [list [string trans2rus $str]]
+  }
+  set (size) [llength [set base [datafile getlist weather.citys]]]
+  foreach_ $base {
     foreach str $lstr {
       if { [string match -nocase $str [lindex_ 0]] } {
 	lappend (city) [lindex_ 0]
