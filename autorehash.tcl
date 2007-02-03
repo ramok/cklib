@@ -15,11 +15,11 @@ namespace eval autorehash {
 }
 
 proc ::autorehash::init {  } {
-  config register -id "delay" -type time -default 3m \
+  config register -id "delay" -type time -default 90 \
     -desc "Delay for rehash after change of files detected." -access "n" -folder "autorehash"
   config register -id "notify" -type str -default "n" \
     -desc "Global flags of users for notify about autorehash." -access "n" -folder "autorehash"
-  etimer -interval 1m ::autorehash::run
+  etimer -interval 50 ::autorehash::run
   catch { unset ::autorehash::detected }
 }
 
