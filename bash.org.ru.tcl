@@ -21,7 +21,7 @@ proc ::bashorgru::init {} {
   cmd doc -link "bash.search" "bash" {~*!bash* [номер]~ - вывод цитаты из bash.org.ru по номеру или случайная цитата.}
   cmd doc -link "bash" "bash.search" {~*!bash* [номер] <фраза>~ - поиск цитаты на bash.org.ru и показать совпадение по номеру.}
 
-  cache register -nobotnet -nobotnick -ttl 10d -maxrec 40
+  cache register -nobotnet -nobotnick -ttl 1d -maxrec 40
 
   config register -id "num.to.private" -type int -default 5 \
     -desc "При каком количестве строк в цитате отправлять цитату в приват." -access "n" -folder "bashorgru"
