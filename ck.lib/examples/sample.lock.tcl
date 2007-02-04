@@ -25,7 +25,7 @@ proc ::myscript::init {  } {
 proc ::myscript::run { sid } {
   variable lock
   # Экспортируем все переменные сессии
-  session export
+  session import
   # проверяем событие по которому вызвались, если CmdPass - тогда команда только вызвана
   if { $Event eq "CmdPass" } {
     # Проверка на блокировку скрипта
@@ -71,7 +71,7 @@ proc ::myscript::run { sid } {
 
 proc ::myscript::rerun { sid } {
   variable lock
-  session export
+  session import
   # Проверяем заблокирован ли скрипт
   if { [catch {set lock} lv] } {
     debug "У нас нет запущенной команды, выходим."
