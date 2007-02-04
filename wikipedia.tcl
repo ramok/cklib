@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd   0.2
+::ck::require cmd   0.4
 ::ck::require http  0.2
 ::ck::require cache 0.2
 
@@ -28,7 +28,7 @@ proc ::wikipedia::init {} {
   }
 }
 proc ::wikipedia::run { sid } {
-  session export
+  session import
 
   if { $Event == "CmdPass" } {
     set req [join [lrange $StdArgs 1 end] " "]

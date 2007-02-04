@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd
+::ck::require cmd 0.4
 ::ck::require cache
 ::ck::require http
 ::ck::require strings 0.3
@@ -65,7 +65,7 @@ proc ::weather::init {  } {
 }
 
 proc ::weather::run { sid } {
-  session export
+  session import
 
   if { $Event eq "CmdPass" } {
     set Request [join [lrange $StdArgs 1 end] { }]
@@ -139,9 +139,9 @@ proc ::weather::run { sid } {
       8 { lappend_ "гроза" }
     }
     set x [join_ {,}]
-    if { $(Hour) > 0 && $(Hour) < 6 } { set_ "ночь"
-    } elseif { $(Hour) > 6 && $(Hour) < 12 } { set_ "утро"
-    } elseif { $(Hour) > 12 && $(Hour) < 18 } { set_ "день"
+    if { $(Hour) >= 0 && $(Hour) <= 4 } { set_ "ночь"
+    } elseif { $(Hour) >= 5 && $(Hour) <= 10 } { set_ "утро"
+    } elseif { $(Hour) >= 11 && $(Hour) <= 17 } { set_ "день"
     } else { set_ "вечер" }
     set frm day; if { ![llength $data] } { append frm 0 }
     set out [list [cformat $frm [0 $(Day)] [lindex \
@@ -178,7 +178,7 @@ proc ::weather::searchcity { str } {
   return [array get {}]
 }
 proc ::weather::update { sid } {
-  session export
+  session import
   if { $Event eq "CmdPass" } {
     reply upd.try
     http run "http://gen.gismeteo.ru/frcdb/cityinfr.txt" -return -charset "cp866"
@@ -202,13 +202,13 @@ proc ::weather::weather { citynum } {
   upvar sid sid
   session create -child -proc ::weather::weather_request \
     -parent-event WeatherResponse
-  session import \
+  session export \
     -grab citynum as RequestCityNum
   session parent
   return
 }
 proc ::weather::weather_request { sid } {
-  session export
+  session import
 
   if { $Event eq "SessionInit" } {
     cache makeid $RequestCityNum

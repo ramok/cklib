@@ -39,7 +39,6 @@ proc ::ck::init {} {
   foreach ns [namespace children ::ck] {
     catch { unset "${ns}::version" }
   }
-  variable modbeforeconfig [list "ck.lib"]
 
   ### Init variables
   set frmpath       [list "scripts" "."]
@@ -94,6 +93,7 @@ proc ::ck::init {} {
   ::ck::require eggdrop
   namespace import -force ::ck::eggdrop::*
   foreach _ $::ck::eggdrop::cmds { namespace export [namespace tail $_] }
+  ::ck::require -debug
   ::ck::require config
   namespace import -force ::ck::config::config
   ::ck::require -botnet
@@ -137,24 +137,12 @@ proc ::ck::debug { args } {
     set txt [lindex $args 0]
   }
   set ns [uplevel 1 [list namespace current]]
-  if { $ns eq "::ck" || [string match "::ck::*" $ns] } {
-    if { $ns eq "::ck" } {
-      set confid ".core.debug.ck.lib"
-    } {
-      set confid [string map {:: .} ".core.debug.mod.[string range $ns 6 end]"]
-    }
-    if { [array exists ::ck::config::lconf] && [info exists ::ck::config::lconf($confid)] && \
-      [lindex [set _ $::ck::config::lconf($confid)] 0] == 1 } {
-        set req_level [lindex $_ 1]
-    }
-    unset confid
-  }
-  if { ![info exists req_level] } {
-    if { [info exists ${ns}::debug] } {
-      set req_level [set ${ns}::debug]
-    } {
-      set req_level 0
-    }
+  if { [array exists ::ck::debug::d] && [info exists ::ck::debug::d($ns)] } {
+    set req_level $::ck::debug::d($ns)
+  } elseif { [info exists ${ns}::debug] } {
+    set req_level [set ${ns}::debug]
+  } else {
+    set req_level 0
   }
   if { $level < $req_level  } {
     if { [info exists _errinfo] } { set ::errorInfo $_errinfo }
@@ -217,12 +205,6 @@ proc ::ck::debug { args } {
     putloglev d ## [stripformat $txt]
     foreach _ $rpl { ::console $_ +d }
   }
-#  if { $level > 6 } {
-#    set pproc [info level 1]
-#    putlog [format ":%s: in \"%s\": %s" $levels [lindex $pproc 0] [lrange $pproc 1 end]]
-#    putlog [format "  msg: %s" $txt]
-#  } {
-#  }
   if { [info exists _errinfo] } { set ::errorInfo $_errinfo }
 }
 proc ::ck::uid {{pfix ""}} {
@@ -352,18 +334,6 @@ proc ::ck::require { module {ver "0.1"} } {
     return -code error "Requested unknown module $module version ${ver}."
   }
   debug -debug "Module %s version %s loaded." $module [set "::ck::${module}::version"]
-  if { ![info exists ::ck::config::version] } {
-    lappend ::ck::modbeforeconfig "mod.$module"
-  } {
-    foreach _ [concat $::ck::modbeforeconfig [list "mod.$module"]] {
-      ::ck::config::config register -folder ".core.debug" -type int -access n -id $_ -default 0 \
-        -desc "Debug for ${_}."
-    }
-    set ::ck::modbeforeconfig [list]
-  }
-  namespace eval ::ck::${module} {
-    variable debug 0
-  }
   return 0
 }
 proc ::ck::etimer { args } {

@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd   0.2
+::ck::require cmd   0.4
 ::ck::require http  0.2
 
 namespace eval ::rate {
@@ -67,7 +67,7 @@ proc ::rate::ai { str } {
   return ""
 }
 proc ::rate::run { sid } {
-  session export
+  session import
 
   if { $Event == "CmdPass" } {
     set Text [join [lrange $StdArgs 1 end] " "]

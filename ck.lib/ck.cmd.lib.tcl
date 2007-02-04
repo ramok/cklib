@@ -1,22 +1,17 @@
 
 #TODO: фильры тоже по каналам матчат
 
-#скрипт может возвращать:
-#  ERR_SYNTAX   - ошибка синтаксиса вызова команды
-#  ERR_INTERNAL - ошибка скрипта
-#    ?string?       - сообщение об ошибке
 ::ck::require core 0.3
 ::ck::require eggdrop  0.2
 ::ck::require colors   0.2
-::ck::require config   0.2
+::ck::require config   0.3
 ::ck::require auth     0.2
-::ck::require sessions 0.2
+::ck::require sessions 0.3
 
 namespace eval ::ck::cmd {
   variable version 0.4
   variable author  "Chpock <chpock@gmail.com>"
 
-  variable debug -20
   variable MAGIC "\000:\000"
   variable MAGIClength [string length $MAGIC]
 
@@ -396,14 +391,14 @@ proc ::ck::cmd::applyfilter { type {tg ""} } {
 }
 proc ::ck::cmd::checkaccess { {ret ""} } {
   upvar sid sid
-  session export -exact CmdAccess
+  session import -exact CmdAccess
   if { $CmdAccess == "-" } { return 1 }
-  session export -exact Handle Nick
+  session import -exact Handle Nick
   if { $Handle == "*" || $Handle == "" } {
     if { $ret != "" } { return -code return }
     return 0
   }
-  session export -exact CmdChannel
+  session import -exact CmdChannel
   if { $CmdChannel == "*" || $CmdChannel == "" } {
     set_ [::matchattr $Handle $CmdAccess]
   } {
@@ -419,7 +414,7 @@ proc ::ck::cmd::checkaccess { {ret ""} } {
     return 0
   }
   # TODO: join in one string without temp-vars & with [string compare]
-  session export -exact Nick
+  session import -exact Nick
   if { [set_ [getuser $Handle XTRA AUTH_NICK]] != $Nick } {
     reply -private -- [::ck::frm auth.nick] $_
     if { $ret != "" } { return -code return }
@@ -450,7 +445,7 @@ proc ::ck::cmd::invoke_cmd { args } {
   set CmdEvent    [lindex {msg dcc pub custom} $(event)]
 
   session create -proc $tcmd(bind)
-  session import -grab tcmd(namespace) as CmdNamespace \
+  session export -grab tcmd(namespace) as CmdNamespace \
     -grab (text) as Text \
     -grab (handle) as Handle \
     -grab (cmdid) as CmdId \
@@ -476,7 +471,7 @@ proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {
   set CmdEventMark ""
 
   session create -proc $tcmd(bind)
-  session import -grab tcmd(namespace) as CmdNamespace \
+  session export -grab tcmd(namespace) as CmdNamespace \
     -grablist [list CmdEvent Text Handle CmdId StdArgs CmdDCC Channel CmdAccess CmdNeedAuth CmdChannel \
       Nick UserHost CmdReturn CmdConfig CmdEventMark]
   if { ![checkaccess] } {
@@ -519,7 +514,7 @@ proc ::ck::cmd::replydoc { args } {
 }
 proc ::ck::cmd::reply { args } {
   upvar sid sid
-  session export CmdReplyParam*
+  session import CmdReplyParam*
   if { [info exists CmdReplyParam] } { set args [concat $CmdReplyParam $args] }
   getargs \
     -noperson flag \
@@ -548,7 +543,7 @@ proc ::ck::cmd::reply { args } {
   }
   set txt  [eval [concat cformat $args]]
   set txt  [stripMAGIC $txt]
-  session export -exact CmdEvent CmdConfig
+  session import -exact CmdEvent CmdConfig
   if { $CmdEvent == "pub" && !$(noperson) && !$(private) } {
     if { [set frm [getfrm "Reply"]] == "" } {
       set frm [::ck::frm default.reply]
@@ -612,7 +607,7 @@ proc ::ck::cmd::msgm { n uh h t } {
 proc ::ck::cmd::filt { i t } {
 #  set tt $t
 #  debug "dcctext:%s:%s:" [string length $t] [string bytelength $t]
-  set enc [::getuser [::idx2hand $i] XTRA _ck.self.cp.patyline]
+  set enc [::getuser [::idx2hand $i] XTRA _ck.core.encoding]
   if { $enc eq "" || [string length $enc] == 1 } {
     fixenc t
   } {
@@ -666,7 +661,7 @@ proc ::ck::cmd::filt { i t } {
 }
 proc ::ck::cmd::getfrm { afrm {defs ""}} {
   upvar sid sid
-  session export -exact CmdNamespace CmdId
+  session import -exact CmdNamespace CmdId
   if { [info exists "${CmdNamespace}::__msgfrm\($CmdId.[list $afrm]\)"] } {
     return [set "${CmdNamespace}::__msgfrm\($CmdId.[list $afrm]\)"]
   } elseif { [info exists "${CmdNamespace}::__msgfrm\([list $afrm]\)"] } {

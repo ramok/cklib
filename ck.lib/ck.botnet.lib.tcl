@@ -1,9 +1,9 @@
 
-::ck::require sessions 0.2
+::ck::require sessions 0.3
 ::ck::require config 0.2
 
 namespace eval ::ck::botnet {
-  variable version 0.2
+  variable version 0.3
   variable author "Chpock <chpock@gmail.com>"
 
   variable res_buf
@@ -94,7 +94,7 @@ proc ::ck::botnet::request { args } {
   set BotsReply [list]
   session create -child -proc ::ck::botnet::make_request \
     -parent-event BotNetResponse -parent-mark $(mark)
-  session import \
+  session export \
     -grab (service) as ServId \
     -grab (cmd) as ReqCmd \
     -grab args as ReqArgs \
@@ -108,7 +108,7 @@ proc ::ck::botnet::request { args } {
 }
 proc ::ck::botnet::make_request { sid } {
   variable req_snt
-  session export
+  session import
   session insert ReqTime [clock seconds]
   set msg [string encode64 -encoding utf-8 -- [list $ReqId $ServId $ReqCmd $ReqArgs]]
   set BotNetTimeout [expr { $BotNetTimeout * 1000 }]
@@ -133,13 +133,13 @@ proc ::ck::botnet::make_request { sid } {
       if { [catch {foreach_ $msg {putbot $Bot $_}} m] } {
 	debug -warn "Error while send request to <%s>." $Bot
 	session return -nodestroy Bot $bot BotNetStatus -20 BotNetError "Error while send request."
-	session export -exact BotsReply
+	session import -exact BotsReply
 	session insert BotsReply [lappend BotsReply $Bot]
       }
     }
   }
   if { [info exists req_snt($ReqId)] } {
-    session export -exact BotsReply
+    session import -exact BotsReply
     if { [llength $BotsList] == [llength $BotsReply] } {
       catch { after cancel [lindex $req_snt($ReqId) 1] }
       catch { unset req_snt($ReqId) }
@@ -150,7 +150,7 @@ proc ::ck::botnet::make_request { sid } {
 }
 proc ::ck::botnet::response { text } {
   upvar sid sid
-  session export -exact Bot ReqId
+  session import -exact Bot ReqId
   set msg "[string encode64 -encoding utf-8 -- [list $ReqId $text]]"
   if { [string length $msg] <= 350 } {
     debug -debug "send one-part response."
@@ -218,7 +218,7 @@ proc ::ck::botnet::bnd_req { fb cmd txt } {
     return
   }
   session create -proc $my_services($ServId)
-  session import -grablist [list ReqId ServId ReqCmd ReqArgs] -grab fb as Bot
+  session export -grablist [list ReqId ServId ReqCmd ReqArgs] -grab fb as Bot
   debug -debug "Got request, launch new session..."
   session event BotNetRequest
 }
@@ -269,7 +269,7 @@ proc ::ck::botnet::bnd_res { fb cmd txt } {
     return
   }
   set sid [lindex $req_snt($ReqId) 0]
-  session export -exact BotsList BotsReply
+  session import -exact BotsList BotsReply
   if { ![lexists $BotsList $fb] } {
     debug -warn "rcvs response from unexpected bot <%s>, ignoring..." $fb
     return
@@ -314,7 +314,7 @@ proc ::_putbot { tobot txt } {
 proc ::ck::botnet::publicinfo { sid } {
   # original idea from rbninfo.tcl by Shrike <shrike@eggdrop.org.ru>
   variable infolock
-  session export
+  session import
   if { $ReqCmd ne "info" && $ReqCmd ne "fullinfo" } return
   if { [array exists infolock] && [info exists infolock($Bot)] } {
     array set oi $infolock($Bot)
@@ -380,7 +380,7 @@ proc ::ck::botnet::publicinfo { sid } {
   response $send
 }
 proc ::ck::botnet::req_timeout { sid } {
-  session export -exact BotsList BotsReply ReqId
+  session import -exact BotsList BotsReply ReqId
   debug -debug "Session timeouted, try to force it."
   set BotsList [lfilter -exact -- $BotsList $BotsReply]
   while { [llength $BotsList] } {

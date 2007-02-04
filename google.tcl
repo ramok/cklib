@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd   0.2
+::ck::require cmd   0.4
 ::ck::require http  0.2
 ::ck::require cache 0.2
 
@@ -58,7 +58,7 @@ proc ::google::clear { string } {
 }
 proc ::google::run { sid } {
   variable lastreq
-  session export
+  session import
   if { $Event eq "CmdPass" } {
     set Text [join [lrange $StdArgs 1 end] { }]
     if { [regexp {^-?(\d+)\s*(.*)$} $Text - QueryNum QueryText] } {
@@ -80,7 +80,7 @@ proc ::google::run { sid } {
     set QueryNumX [expr { $QueryNum - ($QueryNum - 1) % 10 - 1 }]
     cache makeid $QueryText $QueryNumX
     if { ![cache get ParsedData] } {
-      session import -grab Query*
+      session export -grab Query*
       http run "http://www.google.ru/search" -return -charset utf-8 \
         -query [list "q" $QueryText "client" "opera" "rls" "ru" "sourceid" "opera" "ie" "utf-8" \
 	  "oe" "utf-8" start $QueryNumX "filter" [config get filter]]

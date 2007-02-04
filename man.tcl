@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd  0.2
+::ck::require cmd  0.4
 
 # mans array:
 #  index : lowered, uncolored keyword
@@ -135,7 +135,7 @@ proc ::mans::list2titles { mlist } {
   return $result
 }
 proc ::mans::run { sid } {
-  session export
+  session import
 
   if { [regexp -- {^\S+\s+(.+?)\s*([\+\-]?=[\+\-]?)\s*(.*)$} [string trim $Text] - var isadd val] } {
     session insert CmdAccess [config get "admflags"]

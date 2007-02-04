@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd 0.2
+::ck::require cmd 0.4
 
 namespace eval calc {
   variable version 1.1
@@ -43,7 +43,7 @@ proc ::calc::init {} {
 }
 
 proc ::calc::run { sid } {
-  session export
+  session import
   regsub -all -- {[{}\[\]\$\\"']} [join [lrange $StdArgs 1 end] " "] "" ex
   if { [regexp -nocase {^ip\s+(.+)$} $ex - ex] } {
     if { ![regexp {^(\d+\.\d+\.\d+\.\d+)/(\d+)$} $ex - ip mask] } {

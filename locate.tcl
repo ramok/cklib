@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd 0.2
+::ck::require cmd 0.4
 
 namespace eval ::locate {
   variable version "1.1"
@@ -48,7 +48,7 @@ proc ::locate::checkloc { dest } {
   }
 }
 proc ::locate::run { sid } {
-  session export
+  session import
   if { $Event == "CmdPass" } {
     set dest [lindex $StdArgs 1]
     if { [string first @ $dest] != -1 } { set dest [lindex [split $dest @] 1] }
@@ -83,7 +83,7 @@ proc ::locate::run { sid } {
     debug -err "Error while exec whois: %s" $whoisdata
     reply -err runwhois
   }
-  session import -grab whoisdata
+  session export -grab whoisdata
   parse_whois $sid
 }
 proc ::locate::dnsreply { aip ahost astatus sid } {
@@ -92,7 +92,7 @@ proc ::locate::dnsreply { aip ahost astatus sid } {
 }
 proc ::locate::parse_whois { sid } {
   variable countryidx
-  session export -exact whoisdata LocIP LocHost
+  session import -exact whoisdata LocIP LocHost
   set dbtype ""
   set objects [list]
   set obj     [list]

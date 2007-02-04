@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd   0.2
+::ck::require cmd   0.4
 ::ck::require http  0.2
 ::ck::require cache 0.2
 
@@ -67,7 +67,7 @@ proc ::bashorgru::init {} {
 }
 proc ::bashorgru::run { sid } {
   variable annonuce
-  session export
+  session import
   if { $Event == "CmdPass" } {
     if { $CmdEventMark eq "Annonuce" } {
       if { ![llength annonuce] } { debug -err "No quotes for annonuce."; return }
@@ -86,7 +86,7 @@ proc ::bashorgru::run { sid } {
       } {
 	if { ![regexp {^-?(\d*)\s*(.+)$} $QuoteNum - SearchNum SearchPhrase] } { replydoc "bash.search" }
 	if { $SearchNum < 1 } { set SearchNum 1 }
-	session import -grablist [list SearchNum SearchPhrase]
+	session export -grablist [list SearchNum SearchPhrase]
 	cache makeid -tolower all -- $SearchPhrase
 	if { ![cache get SearchResult] } {
 	  http run "http://bash.org.ru/searchresults.php" -query [list "text" $SearchPhrase] -return -query-codepage cp1251
@@ -217,7 +217,7 @@ proc ::bashorgru::checkupdate { {sid ""} } {
     debug -debug "Created session for annonuce update."
     session event -return StartUpdate
   }
-  session export
+  session import
 
   if { $Event eq "StartUpdate" } {
     http run "http://bash.org.ru/" -return

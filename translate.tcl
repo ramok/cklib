@@ -1,7 +1,7 @@
 
 # rewrite from translate.tcl by Twin@RusNet
 encoding system utf-8
-::ck::require cmd   0.2
+::ck::require cmd   0.4
 ::ck::require http  0.2
 ::ck::require cache 0.2
 
@@ -55,7 +55,7 @@ proc ::translate::init {  } {
 
 proc ::translate::run { sid } {
   variable dictionary
-  session export
+  session import
 
   if { $Event eq "CmdPass" } {
     set StdArgs [lrange $StdArgs 1 end]
@@ -99,7 +99,7 @@ proc ::translate::run { sid } {
     cache makeid $dict $dictnum $Text
 
     if { ![cache get TransText] } {
-      session import -grablist [list "dict" "dictnum" "availdict"]
+      session export -grablist [list "dict" "dictnum" "availdict"]
       http run "http://www.translate.ru/text.asp" -post -query-codepage cp1251 -return \
         -query [list "lang" "ru" "status" "translate" "transliterate" "1" "direction" $dict "template" [lindex $availdict $dictnum] \
 	  "source" $Text]

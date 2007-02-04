@@ -22,7 +22,7 @@ proc ::ck::eggdrop::putidx {idx txt} {
   if { [string exists "T" [idx2flags $idx]] } {
     set txt [string strongspace [color mirc2ansi $txt]]
   }
-  if { [catch {set enc [::getuser [::idx2hand $idx] XTRA _ck.self.cp.patyline]}] || $enc eq "" || [string length $enc] == 1 } {
+  if { [catch {set enc [::getuser [::idx2hand $idx] XTRA _ck.core.encoding]}] || $enc eq "" || [string length $enc] == 1 } {
     ::putidx $idx [backencstr $txt]
   } {
     ::putidx $idx [encoding convertto [string range $enc 1 end] $txt]
@@ -63,6 +63,25 @@ proc ::ck::eggdrop::puthelp { txt args } {
   set txt [string range $txt 0 499]
   eval [concat [list ::puthelp $txt] $args]
 }
+proc ::ck::eggdrop::userlevel { hand {chan ""} {chanonly ""} } {
+  if { ![validuser $hand] } { return -1 }
+  if { $chan eq "" } {
+    set flags [chattr $hand]
+  } elseif { ![validchan $chan] } {
+    return -1
+  } else {
+    set flags [chattr $hand $chan]
+    if { $chanonly ne "" } {
+      set flags [lindex [split $flags |] end]
+    }
+  }
+  if { [string first "n" $flags] != -1 } { return 98 }
+  if { [string first "m" $flags] != -1 } { return 70 }
+  if { [string first "o" $flags] != -1 } { return 50 }
+  if { [string first "l" $flags] != -1 } { return 30 }
+  if { [string first "f" $flags] != -1 } { return 20 }
+  return 0
+}
 namespace eval ::ck::eggdrop {
   makeproc getuser setuser channels channel onchan passwdok chattr \
     userlist getchanhost chanlist validuser finduser chhandle botattr matchattr adduser \
@@ -76,10 +95,11 @@ namespace eval ::ck::eggdrop {
     dcclist console matchattr \
     unames modules traffic \
     idx2hand \
-    bots botlist
+    bots botlist \
+    validchan
   lappend cmds putidx putfast putquick idx2flags idx2host \
-    putserv puthelp
-  namespace export idx2* putidx putfast putquick putserv puthelp
+    putserv puthelp userlevel
+  namespace export idx2* putidx putfast putquick putserv puthelp userlevel
   namespace import -force ::ck::*
   namespace import -force ::ck::colors::color
 }

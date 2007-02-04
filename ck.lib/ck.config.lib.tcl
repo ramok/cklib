@@ -19,10 +19,10 @@ encoding system utf-8
 
 ::ck::require files   0.2
 ::ck::require colors  0.2
-::ck::require eggdrop 0.2
+::ck::require eggdrop 0.3
 
 namespace eval ::ck::config {
-  variable version 0.2
+  variable version 0.3
   variable author "Chpock <chpock@gmail.com>"
 
 ## Loaded config
@@ -42,7 +42,7 @@ proc ::ck::config::init {} {
   load
   bind dcc - "set" ::ck::config::cset
 
-  config register -folder ".self" -id "cp.patyline" -access "" -personal \
+  config register -folder ".core" -id "encoding" -access "" -personal \
     -type encoding -default "" -desc "Codepage in patyline."
 }
 ### interface for scripts
@@ -155,10 +155,13 @@ proc ::ck::config::getdefault { id {handle ""} } {
   }
   array set {} $rconf($id)
   if { $(linkparam) != "" } {
-    return [get $(linkparam)]
+    return [get $(linkparam) $handle]
   }
   return $(default)
 }
+# ?<id> - дефолтовый ли параметр: 1 - дефолтовый/0 - custom
+# -<id> - возвращает реально установленый параметр (для параметров типа time и encoding)
+# %<id> - персональный ли параметр: 1 - персональный/0 - общий
 proc ::ck::config::get { id {handle ""} } {
   variable rconf
   variable lconf
@@ -169,6 +172,9 @@ proc ::ck::config::get { id {handle ""} } {
   } elseif { [string index $id 0] eq "?" } {
     set id [string range $id 1 end]
     set orig 2
+  } elseif { [string index $id 0] eq "%" } {
+    set id [string range $id 1 end]
+    set orig 3
   } else {
     set orig 0
   }
@@ -183,6 +189,7 @@ proc ::ck::config::get { id {handle ""} } {
     if { ![array exists {}] } {
       debug -err "Can't find local config param <%s> for namespace <%s>." $id $ns
       if { $orig == 2 } { return 1 }
+      if { $orig == 3 } { return 0 }
       return ""
     }
     debug -debug "Accessing to local param <%s> in namespace <%s>: %s" $id $ns $_
@@ -191,11 +198,14 @@ proc ::ck::config::get { id {handle ""} } {
     if { ![info exists rconf($id)] } {
       debug -err "Try access to not exists config param <%s>." $id
       if { $orig == 2 } { return 1 }
+      if { $orig == 3 } { return 0 }
       return ""
     }
     debug -debug "Accessing to param <%s>." $id
     array set {} $rconf($id)
   }
+
+  if { $orig == 3 } { return $(personal) }
 
   if { !$(disable) && [llength $(disableon)] } {
     debug -debug "Param <%s> have field <disableon>, so check parent param\(%s\)..." \
@@ -331,16 +341,35 @@ proc ::ck::config::confset { id value {handle ""} } {
 
 ### interface for user
 
-proc ::ck::config::access {h cid} {
+proc ::ck::config::access {h cid targhand} {
   variable rconf
 
   array set {} $rconf($cid)
-  if { $(access) == "" } { return 1 }
-  if { $h == "*" } { return 0 }
-  set test [chattr $h]
-  if { $test == "-" || $test == "*" } { return 0 }
-  foreach_ [split $(access) ""] {
-    if { [string first $_ $test] == -1 } { return 0 }
+  if { $(access) != "" } {
+    if { $h == "*" } { return 0 }
+    set test [chattr $h]
+    if { $test == "-" || $test == "*" } { return 0 }
+    foreach_ [split $(access) ""] {
+      if { [string first $_ $test] == -1 } { return 0 }
+    }
+  }
+  if { $(hook) != "" } {
+    set sid $(id)
+    if { $(personal) } { append $(id) "@" $targhand }
+    debug -debug "Run hook proc for param <%s>..." $(id)
+    if { [catch [list $(hook) access $sid [get $(id) $targhand] "" $h] errStr] } {
+      debug -err "Error while exec hook proc <%s>: %s" $(hook) $errStr
+      foreach_ [split $::errorInfo "\n"] { debug -err- "  $_" }
+      return 0
+    }
+    if { [string equal -nocase "access" $errStr] } {
+      return 1
+    } elseif { [string equal -nocase "deny" $errStr] } {
+      return 0
+    }
+  }
+  if { $(personal) } {
+    if { $h ne $targhand && [userlevel $targhand] >= [userlevel $h] } { return 0 }
   }
   return 1
 }
@@ -359,6 +388,20 @@ proc ::ck::config::cset {h idx mask} {
     set mask [lindex $mask 0]
   }
 
+  if { [string first "@" $mask] != -1 } {
+    set mask [split $mask @]
+    set targhand [string trim [lindex $mask end]]
+    set mask [join [lrange $mask 0 end-1] @]
+    if { $targhand eq "" } {
+      set targhand $h
+    } elseif { ![validuser $targhand] } {
+      putidx $idx [cformat [format [frm err.badhandle] $targhand]]
+      return
+    }
+  } {
+    set targhand $h
+  }
+
   set match [list]
   set matchx [list]
   foreach id [array names rconf] {
@@ -367,7 +410,7 @@ proc ::ck::config::cset {h idx mask} {
     if { [llength $(disableon)] } {
       debug -debug "Param <%s> have field <disableon>, so check parent param\(%s\)..." \
 	$id [lindex $(disableon) 0]
-      set pval [get [lindex $(disableon) 0] $h]
+      set pval [get [lindex $(disableon) 0] $targhand]
       debug -debug "Parent Param\(%s\) == %s" [lindex $(disableon) 0] $pval
       if { [llength $(disableon)] == 2 } {
 	if { $pval == [lindex $(disableon) 1] } {
@@ -382,6 +425,8 @@ proc ::ck::config::cset {h idx mask} {
       }
     }
     if { $(disable) } continue
+
+    if { $targhand != $h && !$(personal) } continue
 
     if { [string match -nocase ".$mask" $id] } {
       lappend matchx $id
@@ -402,20 +447,21 @@ proc ::ck::config::cset {h idx mask} {
   }
 
   if { [llength $match] == 1 && [info exists setvalue] } {
-    if { [access $h [lindex $match 0]] < 1 } {
+    if { $(personal) } { set sid "$(id)@$targhand" } { set sid $(id) }
+    if { [access $h [lindex $match 0] $targhand] < 1 } {
       putidx $idx [format [cformat [frm deny]] [lindex $match 0]]
     } elseif { $setvalue eq "-" } {
       array init {} $rconf([lindex $match 0])
       if { $(hook) != "" } {
 	debug -debug "Run hook proc for param <%s>..." $(id)
-	if { [catch [list $(hook) setdefault $(id) [get "-$(id)" $h] "" $h] errStr] } {
+	if { [catch [list $(hook) setdefault $sid [get $(id) $targhand] [getdefault $(id) $targhand] $h] errStr] } {
 	  debug -err "Error while exec hook proc <%s>: %s" $(hook) $errStr
 	  foreach_ [split $::errorInfo "\n"] {
 	    debug -err- "  $_"
 	  }
 	}
       }
-      confsetdefault $(id) $h
+      confsetdefault $(id) $targhand
       unset {}
     } else {
       array init {} $rconf([lindex $match 0])
@@ -465,7 +511,7 @@ proc ::ck::config::cset {h idx mask} {
 	  } {
 	    set xsetvalue $setvalue
 	  }
-	  if { [catch [list $(hook) set $(id) [get "-$(id)" $h] $xsetvalue $h] errStr] } {
+	  if { [catch [list $(hook) set $sid [get $(id) $targhand] $xsetvalue $h] errStr] } {
 	    debug -err "Error while exec hook proc <%s>: %s" $(hook) $errStr
 	    foreach_ [split $::errorInfo "\n"] {
 	      debug -err- "  $_"
@@ -491,7 +537,7 @@ proc ::ck::config::cset {h idx mask} {
 	  }
 	}
 	if { [info exists setvalue] } {
-	  confset $(id) $setvalue $h
+	  confset $(id) $setvalue $targhand
 	}
       } elseif { $err ne "" } {
 	putidx $idx [format [cformat [frm $err]] [string trimleft $(id) .] $setvalue]
@@ -514,7 +560,8 @@ proc ::ck::config::cset {h idx mask} {
     }
   }
 
-  putidx $idx [format [cformat [frm ban1]] $mask]
+  set out  [list]
+  set maxk 10
 
   foreach id $match {
     array init {} $rconf($id)
@@ -522,14 +569,16 @@ proc ::ck::config::cset {h idx mask} {
     if { $(folder) != "" && [info exists folders($(folder))] && [array size folders] > 3 } {
       if { $folders($(folder)) == -1 } continue
       if { $folders($(folder)) > 2 } {
-	putidx $idx [format [cformat [frm folder]] [string trimleft $(folder) .] $folders($(folder))]
+	lappend out "1" [string trimleft $(folder) .] $folders($(folder))
+	set maxk [max $maxk [expr { [string length $(folder)] + 5 }]]
 	set folders($(folder)) -1
+	unset {}
 	continue
       }
     }
 
-    set val [get "-$id" $h]
-    if { ($(hide) || [access $h $id] < 1) && ![get "?$id" $h] } {
+    set val [get "-$id" $targhand]
+    if { ($(hide) || [access $h $id $targhand] < 1) && ![get "?$id" $targhand] } {
       set frm "hide"
     } {
       switch -- $(type) {
@@ -554,16 +603,34 @@ proc ::ck::config::cset {h idx mask} {
     if { ![info exists xval] } {
       set xval [format [cformat [frm $frm]] $val]
     }
-    putidx $idx [format [cformat [frm main]] [string trimleft $id .] $xval]
-    unset xval
+    if { [get "%$id" $targhand] } { append id "@" $targhand }
+    set maxk [max $maxk [string length $id]]
+    lappend out "0" [string trimleft $id .] $xval
+    unset xval {}
+  }
+
+  set maxk [min $maxk 50]
+  putidx $idx [format [cformat [frm ban1]] $mask]
+  foreach {isfolder k v} $out {
+    if { $isfolder } {
+      putidx $idx [format [cformat [frm folder]] $k $v]
+    } {
+      set k [format [frm maink] $maxk $k]
+      set k [string map [list "@" [cformat "[frm mainat1]@[frm mainat2]"]] $k]
+      putidx $idx [format [cformat [frm main]] $k $v]
+    }
   }
 
   putidx $idx [format [cformat [frm ban2]] [llength $match]]
 }
 
+#  main   &G|&n %-20s&K : %s
 ::ck::msgreg -ns ::ck::config {
   ban1   &G.-&K[&nMask: %s&K]&G---&g--&K-- -
-  main   &G|&n %-20s&K : %s
+  maink  %-*s
+  main   &G|&n %s&K: %s
+  mainat1 &B
+  mainat2 &n
   folder &G|&n &L%s&L&P+ &K(&n%s&K)
   ban2   &G`---&K[&nTotal: %s&K]&G-----&g--&G--&g----&K-&g--&K-- - :: -
   novar  &G`-&K[&R No variables found. &K]&G--&g--&G-&g-&K-
@@ -586,4 +653,5 @@ proc ::ck::config::cset {h idx mask} {
   err.enc   &RCan't set variable &K<&B%s&K>&R to &K<&B%s&K>&R, unknown encoding. &rSupport: &n%s
   err.setw  &RWarning&K: &n%s
   err.set   &RError while set &K<&B%s&K>: &n%s
+  err.badhandle &RError! Пользователь&B %s&R не найден.
 }

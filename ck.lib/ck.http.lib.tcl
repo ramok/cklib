@@ -1,6 +1,6 @@
 
 ::ck::require config
-::ck::require sessions
+::ck::require sessions 0.3
 
 namespace eval ::ck::http {
   variable version 0.2
@@ -81,11 +81,11 @@ proc ::ck::http::run { HttpUrl args } {
 
   session create -child -proc ::ck::http::make_request \
     -parent-event HttpResponse -parent-mark $(mark)
-  session import -grab Http*
+  session export -grab Http*
   if { $(return) } { return -code return }
 }
 proc ::ck::http::make_request { sid } {
-  session export -exact HttpUrl HttpRequest HttpQuery HttpProxyPort HttpProxyHost
+  session import -exact HttpUrl HttpRequest HttpQuery HttpProxyPort HttpProxyHost
 
   if { ![regexp -nocase {^([a-z]+://)?([^@/#?]+@)?([^:/#?]+)(:\d+)?(/[^#]+?)?} $HttpUrl - proto user host port path] } {
     debug -err "Error parse url: %s" $HttpUrl
@@ -132,7 +132,7 @@ proc ::ck::http::make_request { sid } {
 }
 proc ::ck::http::connected { sid } {
   session unlock
-  session export -exact HttpSocket
+  session import -exact HttpSocket
 
   catch { fileevent $HttpSocket writable {} }
   if { [catch {fconfigure $HttpSocket -peername} errStr] } {
@@ -142,7 +142,7 @@ proc ::ck::http::connected { sid } {
   }
 
   session insert HttpIntStatus 3
-  session export -exact HttpUrlParse HttpUserAgent HttpCookie HttpHeads HttpRequest HttpQuery
+  session import -exact HttpUrlParse HttpUserAgent HttpCookie HttpHeads HttpRequest HttpQuery
 
   set Head [list "Accept" "*/*" "Host" [lindex $HttpUrlParse 1] \
     "User-Agent" $HttpUserAgent "Connection" "close"]
@@ -236,7 +236,7 @@ proc ::ck::http::parse_headers { sid heads } {
       }
     }
   }
-  session import -grab Http*
+  session export -grab Http*
   debug -debug " HttpMetaType    : %s" $HttpMetaType
   debug -debug " HttpMetaCharset : %s" $HttpMetaCharset
   debug -debug " HttpMetaLength  : %s" $HttpMetaLength
@@ -261,7 +261,7 @@ proc ::ck::http::parse_headers { sid heads } {
   }
 
   session insert HttpStatus 0 HttpError ""
-  session export -exact HttpNoRecode HttpDefaultForceCP HttpDefaultCP HttpSocket
+  session import -exact HttpNoRecode HttpDefaultForceCP HttpDefaultCP HttpSocket
 
   if { $HttpNoRecode || ![string match -nocase "text*" $HttpMetaType] } {
     set enc "binary"
@@ -290,7 +290,7 @@ proc ::ck::http::parse_headers { sid heads } {
 proc ::ck::http::readable { sid } {
   debug -debug "Call-back for http is prossed..."
   session unlock
-  session export -exact HttpSocket HttpData HttpMeta HttpIntStatus
+  session import -exact HttpSocket HttpData HttpMeta HttpIntStatus
   if { $HttpIntStatus == 4 } {
     while { [gets $HttpSocket line] != -1 } {
       if { $line == "" } {
@@ -312,7 +312,7 @@ proc ::ck::http::readable { sid } {
   }
   if { $HttpIntStatus == 5 } {
     append HttpData [read $HttpSocket]
-    session import -grab HttpData
+    session export -grab HttpData
     if { [eof $HttpSocket] } {
       catch { fileevent $HttpSocket readable {} }
       catch { close $HttpSocket }
@@ -333,7 +333,7 @@ proc ::ck::http::readable { sid } {
   session lock
 }
 proc ::ck::http::handler { sid } {
-  session export -exact HttpUrl HttpRedirCount HttpRedirAuto HttpMetaLocation HttpMetaCode \
+  session import -exact HttpUrl HttpRedirCount HttpRedirAuto HttpMetaLocation HttpMetaCode \
     HttpStatus HttpError HttpRequest
   if { $HttpStatus == -1 } {
     if { $HttpMetaLocation != "" } {

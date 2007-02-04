@@ -1,12 +1,11 @@
 
 encoding system utf-8
-::ck::require botnet
+::ck::require botnet 0.3
 ::ck::require cache
 
 namespace eval botnetstat {
   variable version 1.0
   variable author  "Chpock <chpock@gmail.com>"
-  variable debug -100
 
   namespace import -force ::ck::*
   namespace import -force ::ck::botnet::botnet
@@ -15,7 +14,7 @@ namespace eval botnetstat {
 }
 
 proc ::botnetstat::init { } {
-  config register -id update -default 1h -type time \
+  config register -id update -default 999d -type time \
     -desc "Update interval." -access "n" -folder "bnstat" -hook chkconfig
   config register -id file.tree -default "botnet.tree.php" -type str \
     -desc "File where save bots tree." -access "n" -folder "bnstat"
@@ -45,7 +44,7 @@ proc ::botnetstat::update { {sid ""} } {
     session event StartUpdate
     return
   }
-  session export
+  session import
 
 #nick
 #|--nick
@@ -125,7 +124,7 @@ proc ::botnetstat::update { {sid ""} } {
   return
 }
 proc ::botnetstat::checkresponse { sid } {
-  session export
+  session import
 
   if { $BotNetStatus < 0 } return
 

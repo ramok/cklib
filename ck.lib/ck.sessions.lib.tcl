@@ -1,6 +1,6 @@
 
 namespace eval ::ck::sessions {
-  variable version 0.2
+  variable version 0.3
   variable author "Chpock <chpock@gmail.com>"
 
   variable ses_list
@@ -21,7 +21,6 @@ proc ::ck::sessions::session { args } {
     destroy   ::ck::sessions::destroy \
     exists    ::ck::sessions::isexists \
     parent    ::ck::sessions::getparent \
-    dump      ::ck::sessions::dump \
     lock      ::ck::sessions::lock \
     islock    ::ck::sessions::islocked \
     islocked  ::ck::sessions::islocked \
@@ -33,27 +32,6 @@ proc ::ck::sessions::session { args } {
     return    ::ck::sessions::return_uplevel \
     export    ::ck::sessions::export} m]
   return -code $c $m
-}
-proc ::ck::sessions::dump { {what ""} } {
-  variable ses_list
-  if { $what == "all" } {
-    set slist [array names ses_list]
-  } elseif { $what == "" } {
-    set slist [list [uplevel 1 {set sid}]]
-  } else {
-    set slist [list $what]
-  }
-  foreach_ $slist {
-    debug -debug- ".--\[Dump of session %s\]------------------------" $_
-    foreach_ [lsort -dictionary [info vars "::ck::sessions::S${_}::*"]] {
-      if { [catch {set $_} data] } {
-        debug -debug- "| %20s == %s" [namespace tail $_] {(array)}
-      } {
-        debug -debug- "| %20s == %s" [namespace tail $_] [set $_]
-      }
-    }
-    debug -debug- "`-----------"
-  }
 }
 proc ::ck::sessions::getparent {  } {
   upvar sid sid
@@ -88,7 +66,7 @@ proc ::ck::sessions::isexists { args } {
 # -create {var} {value} создает переменную со значением
 # -grab {var} as {newname} создает переменную с именем {newname}
 # -grablist {list} забирает все из листа
-proc ::ck::sessions::import { args } {
+proc ::ck::sessions::export { args } {
   upvar sid sid
   while { [llength $args] != 0 } {
     lpop args cmd
@@ -134,12 +112,12 @@ proc ::ck::sessions::import { args } {
     }
   }
 }
-proc ::ck::sessions::export { args } {
+proc ::ck::sessions::import { args } {
   upvar sid sid
   if { [lindex $args 0] == "-exact" } {
     foreach var [lrange $args 1 end] {
       if { ![info exists [list "::ck::sessions::S${sid}::$var"]] } {
-	debug -err "Try to export non exists variable <%s>." $var
+	debug -err "Try to import non exists variable <%s>." $var
       } {
        uplevel 1 [list set $var [set [list "::ck::sessions::S${sid}::$var"]]]
      }
@@ -148,7 +126,7 @@ proc ::ck::sessions::export { args } {
     foreach var [info vars "::ck::sessions::S${sid}::*"] {
       if { [string match "*::_session_*" $var] } continue
       uplevel 1 [list set [namespace tail $var] [set $var]]
-#      debug -debug "Exporting variable %s, ctx: %s" $var [set $var]
+#      debug -debug "Importing variable %s, ctx: %s" $var [set $var]
     }
   } else {
     foreach mask $args {
@@ -159,9 +137,9 @@ proc ::ck::sessions::export { args } {
     }
   }
 }
-proc ::ck::sessions::exportto { tosid } {
+proc ::ck::sessions::importto { tosid } {
   upvar sid sid
-  debug -debug "Export all variables from session to <%s>..." $tosid
+  debug -debug "Import all variables from session to <%s>..." $tosid
   foreach_ [info vars "::ck::sessions::S${sid}::*"] {
     if { [string match "_session_*" [namespace tail $_]] } continue
     set [list "::ck::sessions::S${tosid}::[namespace tail $_]"] [set $_]
@@ -202,7 +180,7 @@ proc ::ck::sessions::varexists { varn } {
 # -new interface-
 proc ::ck::sessions::lock { {lockid "general"} } {
   upvar sid sid
-  session export -exact _session_lock
+  session import -exact _session_lock
   if { [lexists $_session_lock $lockid] } {
     debug -debug "Session already locked."
     return
@@ -212,7 +190,7 @@ proc ::ck::sessions::lock { {lockid "general"} } {
 }
 proc ::ck::sessions::unlock { {lockid "general"} } {
   upvar sid sid
-  session export -exact _session_lock
+  session import -exact _session_lock
   if { ![lexists $_session_lock $lockid] } {
     debug -debug "Session not locked with lockid <%s>." $lockid
     return
@@ -271,7 +249,7 @@ proc ::ck::sessions::destroy { args } {
     debug -debug "Request for destroy locked session, ignored."
     return
   }
-  session export -exact _session_childs _session_parent
+  session import -exact _session_childs _session_parent
   if { [llength $_session_childs] } {
     debug -debug "Request for destroy session with childs, ignored."
     return
@@ -324,7 +302,7 @@ proc ::ck::sessions::create { args } {
   return $sid
 }
 proc ::ck::sessions::enter { sid } {
-  session export -exact _session_proc
+  session import -exact _session_proc
   debug -debug "Enter in session, with proc: %s" $_session_proc
   if { [catch [list $_session_proc $sid] errStr] } {
     debug -err "Error while exec session proc <%s>: %s" $_session_proc $errStr
@@ -352,14 +330,14 @@ proc ::ck::sessions::enter { sid } {
 proc ::ck::sessions::return_uplevel { args } {
   getargs -nodestroy flag
   set sid [uplevel 1 {set sid}]
-  session export -exact _session_parent
+  session import -exact _session_parent
   set psid [lindex $_session_parent 0]
   if { $(nodestroy) } {
     debug -debug "Child wakeup parent session\(%s\)..." $psid
   } {
     debug -debug "Child return. Resume parent session\(%s\)..." $psid
   }
-  exportto $psid
+  importto $psid
   if { !$(nodestroy) } {
     destroy -sid $sid
   }

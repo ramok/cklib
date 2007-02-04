@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd   0.2
+::ck::require cmd   0.4
 ::ck::require http  0.2
 
 namespace eval httputils {
@@ -52,7 +52,7 @@ proc ::httputils::init {} {
   }
 }
 proc ::httputils::httphead { sid } {
-  session export
+  session import
 
   if { $Event == "CmdPass" } {
     session set ReqUrl [join [lrange $StdArgs 1 end] " "]

@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd 0.2
+::ck::require cmd 0.4
 
 ## quote (list)
 # <quote> <date> <nick!ident@host> <qhashe> <chan> <gflags> <cflags>
@@ -52,7 +52,7 @@ proc ::quotes::init {} {
 }
 proc ::quotes::run { sid } {
   variable quote
-  session export
+  session import
 
   if { [llength $quote] == 0 } {
     reply -err noquote
@@ -94,7 +94,7 @@ proc ::quotes::run { sid } {
 }
 proc ::quotes::addquote { sid } {
   variable quote
-  session export
+  session import
 
   session set CmdAccess [config get addflags]
   checkaccess -return
@@ -123,7 +123,7 @@ proc ::quotes::addquote { sid } {
 }
 proc ::quotes::delquote { sid } {
   variable quote
-  session export
+  session import
 
   if { [llength $quote] == 0 } {
     reply -err noquote

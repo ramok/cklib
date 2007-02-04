@@ -101,7 +101,7 @@ proc ::ck::cache::makeid { args } {
 }
 proc ::ck::cache::check { } {
   upvar sid sid
-  session export Cache*
+  session import Cache*
 
   if { [isdisabled $CacheID] } { return 0 }
 
@@ -118,7 +118,7 @@ proc ::ck::cache::check { } {
 }
 proc ::ck::cache::put { data } {
   upvar sid sid
-  session export Cache*
+  session import Cache*
 
   if { [isdisabled $CacheID] } { return 0 }
 
@@ -174,11 +174,11 @@ proc ::ck::cache::get { args } {
   } {
     upvar sid sid
     if { $(uid) eq "" } {
-      session export -exact CacheUID
+      session import -exact CacheUID
     } {
       set CacheUID $(uid)
     }
-    session export -exact CacheID
+    session import -exact CacheID
   }
 
   if { [isdisabled $CacheID] } { return 0 }
