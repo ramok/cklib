@@ -2,7 +2,7 @@
 ::ck::require colors 0.2
 
 namespace eval ::ck::eggdrop {
-  variable version 0.2
+  variable version 0.3
   variable cmds [list]
 }
 proc ::ck::eggdrop::idx2host {idx} {
@@ -65,7 +65,13 @@ proc ::ck::eggdrop::puthelp { txt args } {
 }
 namespace eval ::ck::eggdrop {
   makeproc getuser setuser channels channel onchan passwdok chattr \
-    userlist getchanhost chanlist \
+    userlist getchanhost chanlist validuser finduser chhandle botattr matchattr adduser \
+    addbot deluser delhost addchanrec delchanrec haschanrec getchaninfo setchaninfo  \
+    newchanban newban newchanexempt newexempt newchaninvite newinvite stick unstick stickexempt \
+    unstickexempt stickinvite unstickinvite killchanban killban killchanexempt kill exempt \
+    killchaninvite killinvite ischanjuped isban ispermban isexempt ispermexempt isinvite \
+    isperminvite isbansticky isexemptsticky isinvitesticky matchban matchexempt matchinvite banlist \
+    exemptlist invitelist newignore killignore ignorelist isignore \
     putserv puthelp \
     dcclist console matchattr \
     unames modules traffic \
