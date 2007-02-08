@@ -9,7 +9,6 @@ namespace eval ::slogan {
   variable annonuce
 
   namespace import -force ::ck::cmd::*
-  namespace import -force ::ck::cache::cache
   namespace import -force ::ck::strings::html
   namespace import -force ::ck::http::http
 }
