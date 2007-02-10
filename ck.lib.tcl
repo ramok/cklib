@@ -65,7 +65,7 @@ proc ::ck::init {} {
     debug -warn "Please set IRC encoding variable \"irc_encoding\" in config-file."
   }
 
-  if { [info exists "::botnet-nick"] } {
+  if { [info exists "::botnet-nick"] && ${::botnet-nick} != "" } {
     set ircnick [fixencstr ${::botnet-nick}]
   } elseif { [info exists "::nick"] } {
     set ircnick [fixencstr $::nick]
