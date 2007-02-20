@@ -3,8 +3,8 @@ encoding system utf-8
 ::ck::require cmd 0.4
 
 namespace eval ::locate {
-  variable version "1.1"
-  variable author  "Chpock <chpock@gmail.com>"
+  variable version "1.2"
+  variable author  "Chpock <chpock@gmail.com> with comments from Smollett@RusNet"
 
   variable countryidx
   variable reserved
@@ -47,13 +47,26 @@ proc ::locate::checkloc { dest } {
     }
   }
 }
+# LocIP - ip к хуизу
+# LocHost - dns ip к хуизу
+# WhoisData - ответ от хуиза
+# WhoisServer - сервер к которому направлять запрос
+# WhoisNick - ник который хуизится, если пустой - значит хост
+# WhoisUserhost - ident@host ника который хуизится
+# WhoisFake     - оригинальная запись(fake) ip, если пустое - значит ip был не fake
+# DNSDest       - на чем делать dns
 proc ::locate::run { sid } {
   session import
   if { $Event == "CmdPass" } {
+    session hook MakeDNS     make_dns
+    session hook GotDNS      got_dns
+    session hook MakeWhois   make_whois
+    session hook GotWhois    got_whois
+    session insert WhoisServer ""
     set dest [lindex $StdArgs 1]
     if { [string first @ $dest] != -1 } { set dest [lindex [split $dest @] 1] }
     # если нужно искать по faked IP....
-    if { [regexp {^[\^~%]([0-9a-fA-F]{8})$} $dest - dest] } {
+    if { [regexp {^[\^~%]([0-9a-f]{8}|[0-9A-F]{8})$} $dest - dest] } {
       set_ [list]
       for {set i 0} {$i < 4} {incr i} {
 	set tmp [string range $dest [expr $i * 2] [expr $i * 2 + 1]]
@@ -70,39 +83,53 @@ proc ::locate::run { sid } {
     }
     # проверка на принадлежность IP локальным сетям
     if { [regexp {^([0-9]{1,3}\.){3}[0-9]{1,3}$} $dest] } { checkloc $dest }
-    session lock
-    dnslookup $dest ::locate::dnsreply $sid
-    return
+    session event -return MakeDNS DNSDest $dest
   }
-
+}
+proc ::locate::make_dns { sid } {
+  session import -exact DNSDest
+  session lock
+  dnslookup $DNSDest ::locate::_dnsreply $sid
+}
+proc ::locate::_dnsreply { aip ahost astatus sid } {
+  session unlock
+  session event GotDNS "LocIP" $aip "LocHost" $ahost
+}
+proc ::locate::got_dns { sid } {
+  session import
   if { $LocIP == "0.0.0.0" } {
     reply -err resolve $LocHost
   }
   checkloc $LocIP
-  if { [catch {exec whois -H $LocIP} whoisdata] && [catch {exec whois $LocIP} whoisdata] } {
-    debug -err "Error while exec whois: %s" $whoisdata
+  session event MakeWhois
+}
+proc ::locate::make_whois { sid } {
+  session import
+  set execstr "exec whois"
+  if { $WhoisServer ne "" } { append execstr " -h $WhoisServer" }
+  append execstr " " $LocIP
+  if { [catch $execstr WhoisData] } {
+    debug -err "while exec whois <%s>: %s" $execstr $WhoisData
     reply -err runwhois
   }
-  session export -grab whoisdata
-  parse_whois $sid
+  session event GotWhois "WhoisData" $WhoisData
 }
-proc ::locate::dnsreply { aip ahost astatus sid } {
-  session unlock
-  session event DNSReply "LocIP" $aip "LocHost" $ahost
-}
-proc ::locate::parse_whois { sid } {
+proc ::locate::got_whois { sid } {
   variable countryidx
-  session import -exact whoisdata LocIP LocHost
+  session import
   set dbtype ""
   set objects [list]
   set obj     [list]
-  set whoisdata [split $whoisdata \n]
+  set whoisdata [split $WhoisData \n]
   for { set i 0 } { $i < [llength $whoisdata] } { incr i } {
     set line [lindex $whoisdata $i]
     switch -- $dbtype {
       "ARIN" {
+	if { [set idx [string first "#" $line]] != -1 } {
+	  set line [string trim [string range $line 0 [incr idx -1]]]
+	}
 	# если пустая строчка или камент - начало нового блока
-	if { $line == "" || [string index $line 0] == "#" } {
+	if { $line == "" } {
 	  if { [llength $obj] } { lappend objects $obj; set obj [list] }
 	  continue
 	}
@@ -114,6 +141,9 @@ proc ::locate::parse_whois { sid } {
 	debug -warn "Unknown string <%s> while parse ARIN database for IP <%s>." $line $LocIP
       }
       "RIPE" {
+	if { [set idx [string first "#" $line]] != -1 } {
+	  set line [string trim [string range $line 0 [incr idx -1]]]
+	}
 	# если пустая строчка или камент - начало нового блока
 	if { $line == "" || [string index $line 0] == "%" } {
 	  if { [llength $obj] } { lappend objects $obj; set obj [list] }
@@ -129,15 +159,42 @@ proc ::locate::parse_whois { sid } {
 	  continue
 	}
 	# обычные пара ключ-значение
-	if { [regexp {^([a-z\-]+):\s+(.+)$} $line - k v] } {
+	if { [regexp {^([a-z\-]+):(\s+(?:.+))?$} $line - k v] } {
+	  set v [string trim $v]
+	  if { $WhoisServer eq "" } {
+	    if { [string match -nocase "*These IP addresses are assigned in the AFRINIC region.*" $v] } {
+	      session event -return MakeWhois WhoisServer "whois.afrinic.net"
+	    }
+	  }
 	  lappend obj $k $v
 	  continue
 	}
 	debug -warn "Unknown string <%s> while parse RIPE database for IP <%s>." $line $LocIP
       }
       default {
-	if { [string first "inetnum:" $line] == 0 } { set dbtype "RIPE"; incr i -1 }
-	if { [string first "OrgName:" $line] == 0 } { set dbtype "ARIN"; incr i -1 }
+	if { [string first "inetnum:" $line] == 0 } {
+	  set dbtype "RIPE"
+	} elseif { [string first "OrgName:" $line] == 0 } {
+	  set dbtype "ARIN"
+	} elseif { [regexp {\s+\(NET-\d+-\d+-\d+-\d+-\d+\)\s*$} $line] } {
+	  if { $WhoisServer eq "" } {
+	    session event -return MakeWhois WhoisServer "whois.lacnic.net"
+	  }
+	  debug -warn "rcvd redirect while whois <%s>, but already at alcnic..." $LocIP
+	} else {
+	  debug -debug "pre str:%s:" $line
+	  continue
+	}
+	incr i -1
+	if { $WhoisServer eq "" } {
+	  if { [string match -nocase "*RIPE Network Coordination Centre*" $line] } {
+	    session event -return MakeWhois WhoisServer "whois.ripe.net"
+	  } elseif { [string match -nocase "*Latin American and Caribbean IP address Regional Registry*" $line] } {
+	    session event -return MakeWhois WhoisServer "whois.lacnic.net"
+	  } elseif { [string match -nocase "*Asia Pacific Network Information Centre*" $line] } {
+	    session event -return MakeWhois WhoisServer "whois.apnic.net"
+	  }
+	}
       }
     }
   }
@@ -146,6 +203,7 @@ proc ::locate::parse_whois { sid } {
     debug -warn "Unknown database while parse IP <%s>." $LocIP
     reply -err prswhois $LocIP
   }
+  set state   ""
   set country ""
   set city    ""
   set address [list]
@@ -156,10 +214,17 @@ proc ::locate::parse_whois { sid } {
       "RIPE@inetnum" {
 	foreachkv $obj {
 	  switch -- $k {
-	    "inetnum" { set netblock [list [lindex $v 0] [lindex $v 2]] }
+	    "inetnum" { set v [split $v { }]; set netblock [list [lindex $v 0] [lindex $v 2]] }
 	    "country" { set country $v }
 	    "city"    { set city $v }
-	    "descr"   { lappend description [string trimright $v {, }] }
+	    "owner" -
+	    "descr"   {
+	      foreach v [split $v {,}] {
+		if { [set v [string trim $v]] eq "" } continue
+		if { [lexists $description $v] } continue
+		lappend description $v
+	      }
+	    }
 	  }
 	}
       }
@@ -169,8 +234,12 @@ proc ::locate::parse_whois { sid } {
 	foreachkv $obj {
 	  switch -- $k {
 	    "address" {
-              if { [lexists $description $v] } continue
-	      lappend address [string trimright $v {, }]
+	      foreach v [split $v {,}] {
+		if { [set v [string trim $v]] eq "" } continue
+		if { [lexists $description $v] } continue
+		if { [lexists $address $v] } continue
+		lappend address $v
+	      }
 	    }
 	  }
 	}
@@ -183,12 +252,12 @@ proc ::locate::parse_whois { sid } {
 	    "City"    { set city $v }
 	    "Address" { lappend address [string trimright $v {, }] }
 	    "Country" { set country $v }
-	    "StateProv" { lappend address "State $v" }
+	    "StateProv" { set state $v }
 	  }
 	}
       }
       "ARIN@NetRange" {
-	set v [lindex $obj 1]
+	set v [split [lindex $obj 1] { }]
 	set netblock [list [lindex $v 0] [lindex $v 2]]
 	break
       }
@@ -197,28 +266,42 @@ proc ::locate::parse_whois { sid } {
   if { [set idx [lsearch -exact $countryidx(domains) [string toupper $country]]] != -1 } {
     set country [string totitle [lindex $countryidx(names) $idx]]
   }
+  if { $state ne "" } {
+    if { [set idx [lsearch -exact $countryidx(shortstatenames) [string toupper $state]]] != -1 } {
+      set state [string totitle [lindex $countryidx(statenames) $idx]]
+    }
+    append country {(} $state {)}
+  }
   if { $city != "" } {
     set address [concat [list $city] $address]
   }
-  set address [join $address {, }]
-  set description [join $description {, }]
-  set out [cjoin [list $country $address $description] join]
+  set_ [list]
+  if { $country ne "" } { lappend_ $country }
+  if { $address ne "" } { lappend_ [join $address {, }] }
+  if { $description ne "" } { lappend_ [join $description {, }] }
   if { $netblock != "" } {
-    set fip [ip2num [lindex $netblock 0]]
-    set sip [ip2num [lindex $netblock 1]]
-    for { set netbits 32 } { $netbits > 0 } { incr netbits -1 } {
-      if { [maskip $sip $netbits] == $fip } break
-    }
-    if { $netbits == 0 } {
-      set netblock [cformat main.range [lindex $netblock 0] [lindex $netblock 1]]
+    if { [regexp {^([\d\.]+)/(\d+)$} [lindex $netblock 0] - a1 a2] } {
+      set a1 [split $a1 .]
+      while { [llength $a1] < 4 } { lappend a1 {0} }
+      set netblock [cformat main.net [join $a1 .] $a2]
     } {
-      set netblock [cformat main.net [lindex $netblock 0] $netbits]
+      set fip [ip2num [lindex $netblock 0]]
+      set sip [ip2num [lindex $netblock 1]]
+      for { set netbits 32 } { $netbits > 0 } { incr netbits -1 } {
+	if { [maskip $sip $netbits] == $fip } break
+      }
+      if { $netbits == 0 } {
+	set netblock [cformat main.range [lindex $netblock 0] [lindex $netblock 1]]
+      } {
+	set netblock [cformat main.net [lindex $netblock 0] $netbits]
+      }
     }
   }
+  set_ [cjoin $_ join]
   if { $LocHost == "" || $LocHost == $LocIP } {
-    reply -uniq main.ip $LocIP $out $netblock
+    reply -uniq main.ip $LocIP $_ $netblock
   } {
-    reply -uniq main.host $LocHost $LocIP $out $netblock
+    reply -uniq main.host $LocHost $LocIP $_ $netblock
   }
 }
 
@@ -304,6 +387,24 @@ namespace eval ::locate {
 	VE VN VI VG WF EH YE YU ZR ZM ZW COM EDU NET MIL ORG GOV KP KR
 	LA SU SK CZ
   }
+  set countryidx(statenames) {
+         "ALABAMA" "ALASKA" "AMERICAN SAMOA" "ARIZONA" "ARKANSAS" "CALIFORNIA" "COLORADO"
+         "CONNECTICUT" "DELAWARE" "DISTRICT OF COLUMBIA" "FEDERATED STATES OF MICRONESIA"
+         "FLORIDA" "GEORGIA" "GUAM" "HAWAII" "IDAHO" "ILLINOIS" "INDIANA" "IOWA" "KANSAS"
+         "KENTUCKY" "LOUISIANA" "MAINE" "MARSHALL ISLANDS" "MARYLAND" "MASSACHUSETTS" "MICHIGAN"
+         "MINNESOTA" "MISSISSIPPI" "MISSOURI" "MONTANA" "NEBRASKA" "NEVADA" "NEW HAMPSHIRE"
+         "NEW JERSEY" "NEW MEXICO" "NEW YORK" "NORTH CAROLINA" "NORTH DAKOTA"
+         "NORTHERN MARIANA ISLANDS" "OHIO" "OKLAHOMA" "OREGON" "PALAU" "PENNSYLVANIA"
+         "PUERTO RICO" "RHODE ISLAND" "SOUTH CAROLINA" "SOUTH DAKOTA" "TENNESSEE" "TEXAS"
+         "UTAH" "VERMONT" "VIRGIN ISLANDS" "VIRGINIA" "WASHINGTON" "WEST VIRGINIA" "WISCONSIN" "WYOMING"
+         "NOVA SCOTIA"
+  }
+  set countryidx(shortstatenames) {
+         AL AK AS AZ AR CA CO CT DE DC FM FL GA GU HI ID IL IN IA KS KY
+         LA ME MH MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND MP OH OK
+         OR PW PA PR RI SC SD TN TX UT VT VI VA WA WV WI WY NS
+  }
+
   set reserved {
     0.0.0.0/8
     "Addresses in this block refer to source hosts on \"this\" network."
