@@ -173,12 +173,15 @@ proc ::ck::cache::get { args } {
     set CacheUID $(uid)
   } {
     upvar sid sid
-    if { $(uid) eq "" } {
-      session import -exact CacheUID
-    } {
+    session import Cache*
+    if { $(uid) ne "" } {
       set CacheUID $(uid)
     }
-    session import -exact CacheID
+    if { $(id) ne "" } {
+      set CacheID $(id)
+    } elseif { ![info exists CacheID] } {
+      set CacheID [ns2cid $(ns)]
+    }
   }
 
   if { [isdisabled $CacheID] } { return 0 }
