@@ -33,7 +33,7 @@ proc ::bashorgru::init {} {
     -desc "Интервал времени автоматического апдейта последних изменений." -access "n" -folder "bashorgru" -hook chkconfig \
     -disableon [list "annon.enable" 0]
   config register -id "annon.interval" -type time -default 10m \
-    -desc "Интервал анонса новых цитат на каналах." -access "n" -folder "bashorgru" \
+    -desc "Интервал анонса новых цитат на каналах." -access "n" -folder "bashorgru" -hook chkconfig \
     -disableon [list "annon.enable" 0]
   config register -id "annon.chans" -type list -default [list] \
     -desc "Список каналов на которых разрешен анонс новых цитат." -access "n" -folder "bashorgru" \
