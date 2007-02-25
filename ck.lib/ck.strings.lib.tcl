@@ -45,7 +45,7 @@ encoding system utf-8
 #   - return <string> decoded from base64
 
 namespace eval ::ck::strings {
-  variable version 0.3
+  variable version 0.4
   variable author "Chpock <chpock@gmail.com>"
 
   variable const
@@ -468,6 +468,7 @@ proc _string {args} {
     encode64    -
     decode64    -
     removeinvalid -
+    randomstr   -
     urlencode   -
     urldecode  {
       return [uplevel 1 [concat "::ck::strings::$cmd" [lrange $args 1 end]]]
