@@ -18,8 +18,10 @@ proc ::bashorgru::init {} {
   cmd register bashorgru ::bashorgru::run \
     -bind "bash" -bind "баш" -flood 10:60
 
-  cmd doc -link "bash.search" "bash" {~*!bash* [номер]~ - вывод цитаты из bash.org.ru по номеру или случайная цитата.}
+  cmd doc -link [list "bash.search" "bash.last"] "bash" \
+    {~*!bash* [номер]~ - вывод цитаты из bash.org.ru по номеру или случайная цитата.}
   cmd doc -link "bash" "bash.search" {~*!bash* [номер] <фраза>~ - поиск цитаты на bash.org.ru и показать совпадение по номеру.}
+  cmd doc -link "bash" "bash.last" {~*!bash* [номер] last~ - просмотр последних цитат.}
 
   cache register -nobotnet -nobotnick -ttl 1d -maxrec 40
 
@@ -54,10 +56,11 @@ proc ::bashorgru::init {} {
     header.search &g.-&G-&K[&n Поиск&K(&p%s&K):&R%s&K/&r%s&n N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
     header        &g.-&G-&K[&n Цитата N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
     header.new    &g.-&G-&K[&n Новая цитата N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
+    header.last   &g.-&G-&K[&n Последние цитаты&K:&R%s&K/&r%s&n N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
     prequote1     &g|&n %s
     prequote2     &G|&n %s
-    tail          &g`-&G----&g-&G--&g--&K-&g-&K----
-    tailx         &g`-&G-&K[&cОстальные &B%s&c строк можно прочитать на &B&U%s&U&K ]&G---&g-&G--&g--&K-&g-&K----
+    tail          &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s &K]&G---&g-&G--&g--&K-&g-&K----
+    tailx         &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s&K; &cОстальные &B%s&c строк можно прочитать на &B&U%s&U&K ]&G---&g-&G--&g--&K-&g-&K----
     to.private &cЦитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c будет отправлена к Вам в приват.
     anon.big &cНовая цитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c, посмотреть ее можно по адресу &B&Uhttp://bash.org.ru/quote.php?num=%s&U&c .
   }
@@ -86,10 +89,17 @@ proc ::bashorgru::run { sid } {
       } {
 	if { ![regexp {^-?(\d*)\s*(.+)$} $QuoteNum - SearchNum SearchPhrase] } { replydoc "bash.search" }
 	if { $SearchNum < 1 } { set SearchNum 1 }
+	if { [string equal -nocase "last" $SearchPhrase] } {
+	  set SearchPhrase ""
+	}
 	session export -grablist [list SearchNum SearchPhrase]
 	cache makeid -tolower all -- $SearchPhrase
 	if { ![cache get SearchResult] } {
-	  http run "http://bash.org.ru/searchresults.php" -query [list "text" $SearchPhrase] -return -query-codepage cp1251
+	  if { $SearchPhrase eq "" } {
+	    http run "http://bash.org.ru/" -return
+	  } {
+	    http run "http://bash.org.ru/searchresults.php" -query [list "text" $SearchPhrase] -return -query-codepage cp1251
+	  }
 	}
       }
     }
@@ -108,7 +118,7 @@ proc ::bashorgru::run { sid } {
 	debug -err "Error while parse page."
 	reply -err parse
       }
-      lassign [lindex $HttpData 0] RealQuoteNum QuoteData
+      lassign [lindex $HttpData 0] RealQuoteNum QuoteData QuoteRate QuoteDate
       if { $QuoteNum != "" && $QuoteNum != $RealQuoteNum } { reply -err badnum $QuoteNum }
       set QuoteNum $RealQuoteNum
     }
@@ -128,8 +138,7 @@ proc ::bashorgru::run { sid } {
       set SearchNum $TotalCount
     }
     set SearchResult [lindex $SearchResult [expr { $SearchNum - 1 }]]
-    set QuoteNum [lindex $SearchResult 0]
-    set QuoteData [lindex $SearchResult 1]
+    lassign [lindex $SearchResult] QuoteNum QuoteData QuoteRate QuoteDate
   }
   # если первым указан канал
   if { [regexp {(#\S+)<br>} $QuoteData - cadd] } {
@@ -156,7 +165,11 @@ proc ::bashorgru::run { sid } {
   if { $CmdEventMark eq "Annonuce" } {
     reply -noperson header.new $QuoteNum $cadd
   } elseif { [info exists SearchResult] } {
-    reply -noperson header.search $SearchPhrase $SearchNum $TotalCount $QuoteNum $cadd
+    if { [string length $SearchPhrase] } {
+      reply -noperson header.search $SearchPhrase $SearchNum $TotalCount $QuoteNum $cadd
+    } {
+      reply -noperson header.last $SearchNum $TotalCount $QuoteNum $cadd
+    }
   } else {
     reply -noperson header $QuoteNum $cadd
   }
@@ -167,7 +180,7 @@ proc ::bashorgru::run { sid } {
     set_ [html unspec $_]
     set_ [string stripspace $_]
     if { $_ == "" } continue
-    if { [info exists SearchResult] } {
+    if { [info exists SearchResult] && [string length $SearchPhrase] } {
       set_ [cquote $_]
       set x ""
       set SearchPhrase [string tolower $SearchPhrase]
@@ -182,16 +195,23 @@ proc ::bashorgru::run { sid } {
     if { [expr rand()] < 0.5 } { set frm "1" } { set frm "2" }
     reply -noperson "prequote$frm" $_
     if { [incr linenum] >= [config get num.max] } {
-      reply -noperson -return tailx [expr { [llength $QuoteData] } - $linenum] "http://bash.org.ru/quote.php?num=$QuoteNum"
+      reply -noperson -return tailx $QuoteRate $QuoteDate [expr { [llength $QuoteData] } - $linenum] \
+	"http://bash.org.ru/quote.php?num=$QuoteNum"
     }
   }
-  reply -noperson tail
+  reply -noperson tail $QuoteRate $QuoteDate
 }
 proc ::bashorgru::parse { HttpData } {
   set_ [list]
-  while { [regexp {<a href="\./quote\.php\?num=(\d+)".+?class="dat">[\s\r\n]*(.+)$} $HttpData - a1 a2] } {
+  while { [regexp {<a href="\./quote\.php\?num=(\d+)"(.+?)class="dat">[\s\r\n]*(.+)$} $HttpData - a1 x1 a2] } {
+    if { ![regexp {\+</a>\s+([0-9-]+)\s+<a href=} $x1 - a3] } { set a3 "?" }
+    if { ![regexp -- {-</a>\s+\]\s+.+?, ([^<]+?)\s*</td>} $x1 - a4] } { set a4 "?" }
     regexp {^(.+?)\s*</td>\s*(.+)$} $a2 - a2 HttpData
-    lappend_ [list $a1 $a2]
+    lappend_ [list $a1 $a2 $a3 $a4]
+    debug -debug "qnum: %s" $a1
+    debug -debug "qtxt: %s" $a2
+    debug -debug "qscr: %s" $a3
+    debug -debug "qdat: %s" $a4
   }
   return $_
 }
