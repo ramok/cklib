@@ -147,6 +147,7 @@ proc ::ck::config::disable { id } {
   }
   debug -warn "Bad id: <$id>"
 }
+# всегда возвращает необработанный дефолтный параметр параметр
 proc ::ck::config::getdefault { id {handle ""} } {
   variable rconf
   if { ![exists $id] } {
@@ -155,29 +156,26 @@ proc ::ck::config::getdefault { id {handle ""} } {
   }
   array set {} $rconf($id)
   if { $(linkparam) != "" } {
-    return [get $(linkparam) $handle]
+    return [get "-$(linkparam)" $handle]
   }
   return $(default)
 }
 # ?<id> - дефолтовый ли параметр: 1 - дефолтовый/0 - custom
-# -<id> - возвращает реально установленый параметр (для параметров типа time и encoding)
+# -<id> - возвращает реально установленный параметр (для параметров типа time и encoding)
+# +<id> - возвращает обработанный дефолтный параметр (для параметров типа time и encoding)
 # %<id> - персональный ли параметр: 1 - персональный/0 - общий
 proc ::ck::config::get { id {handle ""} } {
   variable rconf
   variable lconf
 
-  if { [string index $id 0] eq "-" } {
-    set id [string range $id 1 end]
-    set orig 1
-  } elseif { [string index $id 0] eq "?" } {
-    set id [string range $id 1 end]
-    set orig 2
-  } elseif { [string index $id 0] eq "%" } {
-    set id [string range $id 1 end]
-    set orig 3
-  } else {
-    set orig 0
+  switch -exact -- [string index $id 0] {
+    "-" { set orig 1 }
+    "?" { set orig 2 }
+    "%" { set orig 3 }
+    "+" { set orig 4 }
+    default { set orig 0 }
   }
+  if { $orig } { set id [string range $id 1 end] }
 
   if { [string index $id 0] != "." } {
     set ns [uplevel 1 {namespace current}]
@@ -206,6 +204,7 @@ proc ::ck::config::get { id {handle ""} } {
   }
 
   if { $orig == 3 } { return $(personal) }
+  if { $orig == 4 } { set (disable) 1 }
 
   if { !$(disable) && [llength $(disableon)] } {
     debug -debug "Param <%s> have field <disableon>, so check parent param\(%s\)..." \
@@ -447,14 +446,14 @@ proc ::ck::config::cset {h idx mask} {
   }
 
   if { [llength $match] == 1 && [info exists setvalue] } {
+    array init {} $rconf([lindex $match 0])
     if { $(personal) } { set sid "$(id)@$targhand" } { set sid $(id) }
     if { [access $h [lindex $match 0] $targhand] < 1 } {
       putidx $idx [format [cformat [frm deny]] [lindex $match 0]]
     } elseif { $setvalue eq "-" } {
-      array init {} $rconf([lindex $match 0])
       if { $(hook) != "" } {
 	debug -debug "Run hook proc for param <%s>..." $(id)
-	if { [catch [list $(hook) setdefault $sid [get $(id) $targhand] [getdefault $(id) $targhand] $h] errStr] } {
+	if { [catch [list $(hook) setdefault $sid [get $(id) $targhand] [get "+$(id)" $targhand] $h] errStr] } {
 	  debug -err "Error while exec hook proc <%s>: %s" $(hook) $errStr
 	  foreach_ [split $::errorInfo "\n"] {
 	    debug -err- "  $_"
