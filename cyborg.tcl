@@ -2,9 +2,10 @@
 encoding system utf-8
 ::ck::require cmd   0.4
 ::ck::require http  0.2
+::ck::require strings 0.4
 
 namespace eval ::cyborg {
-  variable version 0.1
+  variable version 0.2
   variable author  "Chpock <chpock@gmail.com>"
 
   namespace import -force ::ck::cmd::*
@@ -14,9 +15,9 @@ namespace eval ::cyborg {
 
 proc ::cyborg::init {  } {
   cmd register cyborg ::cyborg::run \
-    -bind "cyborg" -doc "cyborg" -autousage -flood 10:60
+    -bind "cyb|org" -bind "киб|орг" -doc "cyborg" -flood 10:60
 
-  cmd doc "cyborg" {~*!cyborg* [слово]~ - расшифровка аббревиатуры киборга.}
+  cmd doc "cyborg" {~*!cyborg* [слово]~ - расшифровка аббревиатуры киборга. Если <слово> не задано - генерируется случайное.}
 
   msgreg {
     err.conn  &RОшибка связи.
@@ -39,9 +40,8 @@ proc ::cyborg::run { sid } {
 	append TextR $_
       }
     }
-    if { ([string length $TextR] > 0 && [string length $TextE] > 0) || "$TextR$TextE" eq {} } {
-      replydoc cyborg
-    }
+    if { [string length $TextR] > 0 && [string length $TextE] > 0 } { replydoc cyborg }
+    if { "$TextR$TextE" eq "" } { set TextE [string randomstr -] }
     if { [string length $TextR] } {
       http run "http://www.korova.ru/humor/cyborg.php" -query [list "acronym" $TextR] -query-codepage koi8-r -mark "Rus" -return
     } {
