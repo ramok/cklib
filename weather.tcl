@@ -145,7 +145,7 @@ proc ::weather::run { sid } {
     } else { set_ "вечер" }
     set frm day; if { ![llength $data] } { append frm 0 }
     set out [list [cformat $frm \
-      [lindex {Вс Пн Вт Ср Чт Пт Сб Вс} [clock format [clock scan "$(Day) $(Month) $(Year)" -format "%d %N %Y"] -format %u]] \
+      [lindex {Вс Пн Вт Ср Чт Пт Сб Вс} [clock format [clock scan "$(Month)/$(Day)/$(Year)"] -format %u]] \
         [0 $(Day)] \
 	  [lindex {Янв Фев Мар Апр Мая Июн Июл Авг Сен Окт Ноя Дек} [incr (Month) -1]] \
 	    $_ [cformat temp $(MinT) $(MaxT) $x]]]
