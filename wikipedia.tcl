@@ -25,6 +25,7 @@ proc ::wikipedia::init {} {
   msgreg {
     err.http &BОшибка связи с Википедией&K:&R %s
     err.noarticle &BСтатья в Википедии не найдена.
+    err.search    &BWiki поиск&K: &RК сожалению, по вашему запросу не было найдено точных соответствий.
     search    &BWiki поиск%s:&n &U%s
     search.j  "&n, &U"
     search.num1 &K[&R%s-%s&K/&r%s&K]
@@ -62,14 +63,13 @@ proc ::wikipedia::run { sid } {
   # выдана ли нам страничка поиска
   if { $Mark eq "Search" && [regexp {<!--\squerying\s[^>]+\s-->(.+)$} $HttpData - HttpData] } {
     if { ![regexp {<strong>\s*\D+(\d+)\D+(\d+)\D+(\d+)\D*</strong>} $HttpData - r1 r2 r3] } {
-      set resultnum [list "?" "?" "?"]
+      reply -err search
     } {
-      set resultnum [list $r1 $r2 $r3]
-    }
-    if { [lindex $resultnum 1] == [lindex $resultnum 2] } {
-      set resultnum [cformat search.num0 [lindex $resultnum 0] [lindex $resultnum 1]]
-    } {
-      set resultnum [cformat search.num1 [lindex $resultnum 0] [lindex $resultnum 1] [lindex $resultnum 2]]
+      if { $r2 == $r3 } {
+	set resultnum [cformat search.num0 $r1 $r2]
+      } {
+	set resultnum [cformat search.num1 $r1 $r2 $r3]
+      }
     }
     # вырезаем сами рерультаты поиска
     regfilter {^.+?<ul>} HttpData
