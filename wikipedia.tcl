@@ -17,8 +17,8 @@ proc ::wikipedia::init {} {
   cmd register wikipedia ::wikipedia::run -doc "wiki" -autousage \
     -bind "wiki|pedia" -bind "wp" -bind "вики|педия" -flood 10:60
 
-  cmd doc "wiki" {~*!wiki* [язык] <статья>~ - запрос в Википедию. <язык> - двухбуквенное \
-    обозначение языка &K(&nнапример&K: &Ben&n - английский, &Bfr&n - французкий&K)}
+  cmd doc "wiki" {~*!wiki* [-номер] [язык] <статья>~ - запрос в Википедию. <номер> - вариант поиска, <язык> - двухбуквенное \
+    обозначение языка &K(&nнапример&K: &Ben&n - английский, &Bfr&n - французкий&K).}
 
   config register -id "num.search" -type bool -default 0 \
     -desc "Добавлять ли номер результата поиска." -access "m" -folder "wikipedia"
