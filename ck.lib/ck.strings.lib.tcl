@@ -19,7 +19,7 @@ encoding system utf-8
 #   - strip <count> (default - 1) word in <varName> and return it
 # [string stripspace <string>]
 #   - replace many space chars with one. Remove leading and trailing characters.
-# [string randomstr <num>]
+# [string randomstr ?<num>?]
 #   - return random string with <num> characters
 # [string stripcolor <string>]
 #   - return <string> with ripped mirc's colors
@@ -172,11 +172,18 @@ proc ::ck::strings::stripspace { str } {
   return [string trim $str]
 }
 proc ::ck::strings::randomstr { {nums 10} } {
-  set ret ""
-  for {} {$nums >= 0} {incr nums -1} {
-    append ret [binary format c [expr int(rand() * 26 + 65 + 32 * int(rand() * 2))]]
+  variable const
+  if { [regexp {^0*(\d+)$} $nums - nums] } {
+    while { [incr nums -1] > -1 } {
+      append ret [binary format c [expr {int(26*rand()) + 65 + 32 * int(2*rand())}]]
+    }
+  } {
+    foreach _ [split [lindex {31 56 01 032 542 076 02 32 56 01 89} [expr int(11*rand())]] {}] {
+      set _ [lindex $const(randstr) $_]
+      append ret [lindex $_ [expr {int([llength $_]*rand())}]]
+    }
   }
-  return $ret
+  return [expr {[info exists ret]?$ret:{}}]
 }
 proc ::ck::strings::stripcolor {str} {
   regsub -all "\003(\[0-9\]{1,2})(,\[0-9\]{1,2})?" $str "" str
@@ -471,3 +478,15 @@ proc _string {args} {
   }
 }
 
+namespace eval ::ck::strings {
+  set const(randstr) [split {ambi ana ani alte ante anti arti arche astro audi auto bene beta bio casca caco chrono coma contra cosmo data dada de deci demo deo deve dia divi digi dino domi dyna eco ecto ego endo envi ephe epi exti exi exo expe ergo gene geo giga hare hero homo hype idio inde infra inte inno juno jupi kilo kimo leo levi loca lutho macro mani maxi medi mega meso meta micro moni mono multi nano nemo nitro origi optio octo oxy para pata pate peri phobo photo plexi poly porta pre pro proto pyro quadro rama retro scie solo stella synthe techno tele tetra theo uni uno uto venu vento visi vita xeno xero xylo zero zoo ratio ange visa casa cali empi aphe kine xepha agei analo helio huma esca xyle iso tide sibe nige muti gara via equa yuca auro wake luna cata love zodi mona karma asce gaya neuro kaba guru cano cine abra arie aspi teni tene
+  llic phor dical soft logy graph phys tics nicle nom ster can tone biz naut tech thron tech dor tive zos pher gen pia span ther haust dus corp cope phon lus lex ware gyn cine cate cal tion mode cide tism lize pose rage nous mous scan noid lous tate gog ture gure tor nure log reux tome vert duce thes rior cede spect byte cept red cent bol dox tox flex morph sty duct dict chron size city blic ntial nct ges nce lyse lope scope scape ridge stence bulb tium polis sphan mim dies logue gon xote lio tres res chre field shell ngle cale que line lite tigue pad spec rian nsion late taur tame twine liga teau ria zed nos xas lum nation dew tigo lood son reth tinus phia rast bert gion bura ding soph tent xtra nite cles sim kreuz dom spect bis ward duce lypse kone type
+  ph m n th ss le ne ct sh ck me nt ng ze re x t ge gue p ve nse pe ns pa val ca net de ros gh stre ble rth
+  ba be bee bha bi bo by ca ce che co cy da de di do dre fe fi ga ge gi gy ha he hi ho la le li lo ly ma me mi mo my na ne ni no ny pa pe po pre pro qe ra re ru ri ro sa se si so su ta te the ti to tu va ve vi wa we wi wy wo xa xe za ze zo
+  a a e e i i o y u u a a a e e i i o y u
+  dolph nesp cans spew fram less flath nith prem spins touch beat nons conc camp gaul latr faust cribl nitr easth trad spec electr naut nimr cell consp misd pack sub atom art under over kitch sink evil subv tank genr past scam futur steel thorn bend plag fount nedt sweep gemin coax neon domin kawl junct super grac juxt velv spac saturn nucl plut atlant germ spast bisc synchr mond carib phot solid ether kant meltm rept quand prox emper arcad theat gnom cloud goth carp jerom caplet deler cryst trib esth epil proph saur dayl loung scorp meph dynam babyl orang viol cabal sulph magn dethr apoll maeson hermet mund mechan glyph plex gnost mercur uriz pyth spagyr cansel caduc tart conq sublim axiom ascend mater script oracul hasid phar proph gener cecil gang cath temp apostl goeth ocean virg unic spectr yeat zetz quant quint revel prot
+  os us et ia ism or ace age ator ion alon ama es ong ola ex ax ice ic ox ute ima en im ant er on io ite ure ica eus et
+  b c d f g h j k l m n p q r s t v w b b c c d d g g h k l m m n n p p r r s s t t v w
+  ten sub art con lab nor pan pop nax top tel dig nap ban tip sep hot mud wet cat man pro pre win tub sun pet nil bed hit lan zen god
+  ant tor tic ist set net cer can end let van tos gen sat gel star ster son dad site bat ter pix vet test line met mag land med tra tox biz tag fin rod ware soft run est} \n]
+}
