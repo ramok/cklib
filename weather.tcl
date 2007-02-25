@@ -38,8 +38,8 @@ proc ::weather::init {  } {
     nocity        &RГород по Вашему запросу не найден.
     manymatch     &RУточните запрос. По Вашему запросу найдены города&K: &B%s
     manymatchj    "&K, &B"
-    day0          &K[&R%s &r%s&K(&R%s&K)] %s
-    day           &r(&R%3$s&r) %4$s
+    day0          &K[&R%s &r%s %s&K(&R%s&K)] %s
+    day           &r(&R%4$s&r) %5$s
     temp          &p%s&K..&p%s°C&K(&n%s&K)
     wind          &bВтр:&B%s..%sм/с&n(%s)
     press         &bДвл:&B%sмм
@@ -60,7 +60,7 @@ proc ::weather::init {  } {
     err.upd.http  &RОшибка связи с сервером.
     err.upd.pars  &RОшибка разбора данных полученных от сервера.
     upd.done      &BОбновление успешно завершено. В базе &R%s&B городов.
-    err.needupd   &RВ база городов пуста, пожалуйста сделайте&B !weather update&R.
+    err.needupd   &RБаза городов пуста, пожалуйста сделайте&B !weather update&R.
   }
 }
 
@@ -144,9 +144,11 @@ proc ::weather::run { sid } {
     } elseif { $(Hour) >= 11 && $(Hour) <= 17 } { set_ "день"
     } else { set_ "вечер" }
     set frm day; if { ![llength $data] } { append frm 0 }
-    set out [list [cformat $frm [0 $(Day)] [lindex \
-      {Янв Фев Мар Апр Мая Июн Июл Авг Сен Окт Ноя Дек} [incr (Month) -1]] \
-        $_ [cformat temp $(MinT) $(MaxT) $x]]]
+    set out [list [cformat $frm \
+      [lindex {Вс Пн Вт Ср Чт Пт Сб Вс} [clock format [clock scan "$(Day) $(Month) $(Year)" -format "%d %N %Y"] -format %u]] \
+        [0 $(Day)] \
+	  [lindex {Янв Фев Мар Апр Мая Июн Июл Авг Сен Окт Ноя Дек} [incr (Month) -1]] \
+	    $_ [cformat temp $(MinT) $(MaxT) $x]]]
     lappend out [cformat wind $(MinW) $(MaxW) [lindex \
       {Сев ССВ СВ СВС Вст ВЮВ ЮВ ЮЮВ Южн ЮЮЗ ЮЗ ЗЮЗ Зап ЗСЗ СЗ ССЗ} $(RumbW)]]
     lappend out [cformat press [~ $(MinP) $(MaxP)]]
@@ -225,6 +227,7 @@ proc ::weather::weather_request { sid } {
 
   array set result [list]
   foreach_ [split $HttpData \n] {
+    debug -raw "data: %s" $_
     if { [llength [set_ [split_ ,]]] != 17 } continue
     array set {} [list]
     foreach_ $_ {
