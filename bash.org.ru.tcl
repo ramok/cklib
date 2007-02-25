@@ -74,7 +74,7 @@ proc ::bashorgru::run { sid } {
   if { $Event == "CmdPass" } {
     if { $CmdEventMark eq "Annonuce" } {
       if { ![llength annonuce] } { debug -err "No quotes for annonuce."; return }
-      lassign [lindex $annonuce end] QuoteNum QuoteData
+      lassign [lindex $annonuce end] QuoteNum QuoteData QuoteRate QuoteDate
       set annonuce [lreplace $annonuce end end]
       config set "annon.last" $QuoteNum
     } {
