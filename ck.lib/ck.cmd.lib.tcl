@@ -3,13 +3,13 @@
 
 ::ck::require core 0.3
 ::ck::require eggdrop  0.2
-::ck::require colors   0.2
+::ck::require colors   0.3
 ::ck::require config   0.3
 ::ck::require auth     0.2
 ::ck::require sessions 0.3
 
 namespace eval ::ck::cmd {
-  variable version 0.4
+  variable version 0.5
   variable author  "Chpock <chpock@gmail.com>"
 
   variable MAGIC "\000:\000"
@@ -21,6 +21,7 @@ namespace eval ::ck::cmd {
   namespace import -force ::ck::auth::authcheck
   namespace import -force ::ck::sessions::session
   namespace import -force ::ck::files::datafile
+  namespace import -force ::ck::colors::color
   namespace export cmd cmdchans cmd_checkchan
   namespace export cformat cjoin cquote cmark
   namespace export reply replydoc checkaccess
@@ -65,7 +66,7 @@ proc ::ck::cmd::init {} {
   bind filt - * ::ck::cmd::filt
 
 #  if { [array exist floodctl] } { unset floodctl }
-#  array set floodctl ""
+#  array set floodctl {}
 #  foreach timer [after info] {
 #    if { [string match "::ck::cmd::*" [after info $timer]] } { after cancel $timer }
 #  }
@@ -475,13 +476,36 @@ proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {
     -grablist [list CmdEvent Text Handle CmdId StdArgs CmdDCC Channel CmdAccess CmdNeedAuth CmdChannel \
       Nick UserHost CmdReturn CmdConfig CmdEventMark]
   if { ![checkaccess] } {
+    cmdlog "noaccess"
     session destroy
   } elseif { [llength $StdArgs] < 2 && $tcmd(autousage) } {
+    cmdlog "autousage"
     catch { replydoc $tcmd(doc) }
     session destroy
   } else {
+    cmdlog
     session event CmdPass
   }
+}
+proc ::ck::cmd::cmdlog { {status ""} } {
+  foreach_ {Nick Channel CmdEvent StdArgs CmdId UserHost} { upvar $_ $_ }
+  if { $status ne "" } { set status [format {(%s)} $status] }
+  switch -- $CmdEvent {
+    "pub" { set m [format {pub(%s/%s) :%s%s: %s} $Channel $Nick $CmdId $status $StdArgs] }
+    "msg" { set m [format {msg(%s!%s) :%s%s: %s} $Nick $UserHost $CmdId $status $StdArgs] }
+    "dcc" { set m [format {dcc(%s) :%s%s: %s} $Nick $CmdId $status $StdArgs] }
+    default { return }
+  }
+  set rpl [list]
+  foreach_ [dcclist CHAT] {
+    if { [string first c [lindex [console [set_ [lindex_ 0]]] 1]] == -1 } continue
+    lappend rpl $_
+    ::console $_ -c
+    putidx $_ $m
+  }
+#  putloglev c ## [stripformat $txt]
+  putloglev c ## $m
+  foreach_ $rpl { ::console $_ +c }
 }
 proc ::ck::cmd::replydoc { args } {
   variable doc_handler
@@ -512,6 +536,14 @@ proc ::ck::cmd::replydoc { args } {
   reply "%s" [cmark [lindex $cmddoc([lindex $stoplist end]) 2]]
   return -code return
 }
+proc ::ck::cmd::makepfix { cmd targlist } {
+  set maxret [set max 510]
+  foreach_ $targlist {
+    set maxret [min $maxret [expr { $max - [string length [format ":%s %s %s :" $::botname $cmd $_]] }]]
+  }
+  set pfix [format "%s %s :" $cmd [join $targlist ,]]
+  return [list $pfix [min $maxret [expr { $max - [string length $pfix] }]]]
+}
 proc ::ck::cmd::reply { args } {
   upvar sid sid
   session import CmdReplyParam*
@@ -519,17 +551,19 @@ proc ::ck::cmd::reply { args } {
   getargs \
     -noperson flag \
     -return flag \
+    -noreturn flag \
     -private flag \
     -err flag \
     -broadcast flag \
     -doc str "" \
     -uniq flag \
     -bcast-targ list [list] \
-    -multi int 1
+    -multi flag \
+    -multi-max int 2
 
   if { $(doc) ne "" } {
     catch { replydoc $(doc) }
-    return -code return
+    if { $(noreturn) } return { return -code return }
   }
   if { $(err) } {
     if { [llength $args] } {
@@ -543,42 +577,63 @@ proc ::ck::cmd::reply { args } {
   }
   set txt  [eval [concat cformat $args]]
   set txt  [stripMAGIC $txt]
-  session import -exact CmdEvent CmdConfig
+  if { $txt eq "" } {
+    if { $(return) || (!$(noreturn) && $(err)) } { return -code return } return
+  }
+  session import -exact CmdEvent CmdConfig CmdId Nick Channel
   if { $CmdEvent == "pub" && !$(noperson) && !$(private) } {
     if { [set frm [getfrm "Reply"]] == "" } {
       set frm [::ck::frm default.reply]
     }
-    set frm [stripMAGIC [cformat $frm [session set Nick]]]
+    set frm [stripMAGIC [cformat $frm $Nick]]
     set txt "$frm$txt"
   }
   set mode [::ck::config::config get ".${CmdConfig}.msgmode"]
-#  debug "xxx: $txt"
+  if { $mode eq "" } { debug -warn "Unknown put mode for cmd <%s>." $CmdId; set mode "serv" }
   switch -- $CmdEvent {
     "msg" {
-      set txt [::ck::colors::cformat $txt]
-#      set txt [string range $txt 0 300]
-      put$mode "PRIVMSG [session set Nick] :$txt"
-#      debug -debug "put$mode \"PRIVMSG [session set Nick] :$txt\""
+      set txt [::ck::colors::cformat -optcol $txt]
+      lassign [makepfix "PRIVMSG" [list $Nick]] pre width
+      if { $(multi) } {
+	foreach txt [color splittext -maxlines $(multi-max) -width $width $txt] {
+	  put$mode "$pre$txt"
+	}
+      } {
+        put$mode [string range "$pre$txt" 0 [incr width -1]]
+      }
     }
     "pub" {
-      set txt [::ck::colors::cformat $txt]
-#      set txt [string range $txt 0 300]
-      if { $(private) } {
-        put$mode "NOTICE [session set Nick] :$txt"
+      set txt [::ck::colors::cformat -optcol $txt]
+      if { $(private) || [::ck::config::config get ".${CmdConfig}.notice"] eq "1" } {
+	lassign [makepfix "NOTICE" [list $Nick]] pre width
+	if { $(multi) } {
+	  foreach txt [color splittext -maxlines $(multi-max) -width $width $txt] {
+	    put$mode "$pre$txt"
+	  }
+	} {
+	  put$mode [string range "$pre$txt" 0 [incr width -1]]
+	}
       } {
 	if { $(broadcast) } {
-	  if { ![llength $(bcast-targ)] } { set (bcast-targ) [cmdchans [session set CmdId]] }
+	  if { ![llength $(bcast-targ)] } { set (bcast-targ) [cmdchans $CmdId] }
 	  if { [::ck::config::config get "pub.multitarget"] } {
-	    put$mode "PRIVMSG [join $(bcast-targ) {,}] :$txt"
+	    lassign [makepfix "PRIVMSG" $(bcast-targ)] pre width
+	    put$mode [string range "$pre$txt" 0 [incr width -1]]
 	  } {
 	    foreach_ $(bcast-targ) {
-	      put$mode "PRIVMSG $_ :$txt"
+	      lassign [makepfix "PRIVMSG" [list $_]] pre width
+	      put$mode [string range "$pre$txt" 0 [incr width -1]]
 	    }
 	  }
 	} {
-#	  debug "yyy: PRIVMSG [session set Channel] :$txt"
-#	  debug -debug "put$mode \"PRIVMSG [session set Channel] :$txt\""
-	  put$mode "PRIVMSG [session set Channel] :$txt"
+	  lassign [makepfix "PRIVMSG" [list $Channel]] pre width
+	  if { $(multi) } {
+	    foreach txt [color splittext -maxlines $(multi-max) -width $width $txt] {
+	      put$mode "$pre$txt"
+	    }
+	  } {
+	    put$mode [string range "$pre$txt" 0 [incr width -1]]
+	  }
 	}
       }
     }
@@ -587,9 +642,7 @@ proc ::ck::cmd::reply { args } {
       putidx [session set CmdDCC] $txt
     }
   }
-  if { $(return) || $(err) } {
-    return -code return
-  }
+  if { $(return) || (!$(noreturn) && $(err)) } { return -code return } return
 }
 proc ::ck::cmd::pubm { n uh h tg t } {
   fixenc n uh h tg t
