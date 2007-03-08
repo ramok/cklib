@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd   0.4
+::ck::require cmd   0.5
 ::ck::require http  0.2
 ::ck::require cache 0.2
 
@@ -22,6 +22,8 @@ proc ::wikipedia::init {} {
 
   config register -id "num.search" -type bool -default 0 \
     -desc "Добавлять ли номер результата поиска." -access "m" -folder "wikipedia"
+  config register -id "multi.count" -type int -default 2 \
+    -desc "Сколько строк выдавать при выводе страницы вики." -access "m" -folder "wikipedia"
 
   cache register -nobotnet -nobotnick -ttl 10d -maxrec 30
 
@@ -67,6 +69,10 @@ proc ::wikipedia::run { sid } {
     }
     cache makeid $lang $req $Mark
     cache put $HttpData
+  }
+
+  if { [set_ [config get "multi.count"]] > 1 } {
+    session set CmdReplyParam [list "-multi" "-multi-max" $_]
   }
 
   regfilter {^.+?<!-- start content -->[\s\r\n]*} HttpData
