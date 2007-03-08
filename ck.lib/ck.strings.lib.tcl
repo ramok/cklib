@@ -2,27 +2,15 @@
 encoding system utf-8
 
 ###
-# [string filter <string> <filter>]
-#   - remove all chars in <filter> from <string>
-# [string regfilter <string> <regexp>]
-#   - remove from <string> all entries which match <regexp>
-# [string allow <string> <allowed>]
-#   - remove from <string> all chars which is NOT in <allowed>
-### Note: in all filters can use metas-string:
-###  :leng: :lrus: - lowered english/russian chars
-###  :ueng: :urus: - upper english/russian chars
-###  :eng: :rus:   - lowered&upper english/russian chars
-###  :dig:         - digits
-# [string stripspec <string>]
-#   - escape tcl-special chars with '\'
 # [string stripword <varName> ?<count>?]
 #   - strip <count> (default - 1) word in <varName> and return it
 # [string stripspace <string>]
 #   - replace many space chars with one. Remove leading and trailing characters.
 # [string randomstr ?<num>?]
 #   - return random string with <num> characters
-# [string stripcolor <string>]
-#   - return <string> with ripped mirc's colors
+# [string stripcolor ?<flags...>? <string>]
+#   - return <string> with ripped mirc's colors, if <flags> exists, strip only specified codes
+#     flags: -color, -bold, -reverse, -underline, -clear
 # [string exists <substring> <string>]
 #   - return true if <substring> is in <string>
 # [string nohighlight <string>]
@@ -45,7 +33,7 @@ encoding system utf-8
 #   - return <string> decoded from base64
 
 namespace eval ::ck::strings {
-  variable version 0.4
+  variable version 0.5
   variable author "Chpock <chpock@gmail.com>"
 
   variable const
@@ -69,6 +57,8 @@ proc ::ck::strings::init {  } {
   set const(urlde)  [list]
   set const(urldex) [list]
   set const(mapf)   [list]
+  set const(r2t)    "
+    й y ц c у u к k е e н n г g ш sh щ sh з z х h ъ ' ф f ы i в v а a п p р r о o л l д d ж zh э e я ya ч ch с s м m и i т t ь ' б b ю yu"
 
   if { [catch {rename ::string ::ck::strings::string} errStr] } { rename ::string "" }
   rename ::_string ::string
@@ -123,35 +113,6 @@ proc ::ck::strings::removeinvalid { string } {
   }
   return $_
 }
-proc ::ck::strings::stripspec { str {isregexp 0} } {
-  set str [string map {\\ \\\\ \{ \\\{ \} \\\} \[ \\\[ \] \\\] \$ \\\$ \" \\\"} $str]
-  if { $isregexp } {
-    set str [string map {- \\- ^ \\^ * \\* ( \\( ) \\) . \\. + \\+} $str]
-  } {
-    set str [string map {\; \\\;} $str]
-  }
-  return $str
-}
-proc ::ck::strings::_filter {str filt} {
-  regsub -all -- $filt $str "" str
-  return $str
-}
-proc ::ck::strings::filter {str filt} {
-  variable const
-  set filt [string map $const(mapf) $filt]
-  return [_filter $str "\[[stripspec $filt 1]\]"]
-}
-proc ::ck::strings::regfilter {str filt} {
-  variable const
-  set filt [string map $const(mapf) $filt]
-  return [_filter $str $filt]
-}
-proc ::ck::strings::allow {str filt} {
-  variable const
-  set filt [string map $const(mapf) $filt]
-#  putlog $filt
-  return [_filter $str "\[^[stripspec $filt 1]\]"]
-}
 proc ::ck::strings::stripword {xstr} {
   if { [llength $xstr] > 1 } {
     set count [lindex $xstr 1]
@@ -168,8 +129,7 @@ proc ::ck::strings::stripword {xstr} {
   return $ret
 }
 proc ::ck::strings::stripspace { str } {
-  regsub -all -- {[\r\n\t\s]+} $str { } str
-  return [string trim $str]
+  return [string trim [regsub -all {[\r\n\t\s]+} $str { }]]
 }
 proc ::ck::strings::randomstr { {nums 10} } {
   variable const
@@ -185,10 +145,24 @@ proc ::ck::strings::randomstr { {nums 10} } {
   }
   return [expr {[info exists ret]?$ret:{}}]
 }
-proc ::ck::strings::stripcolor {str} {
-  regsub -all "\003(\[0-9\]{1,2})(,\[0-9\]{1,2})?" $str "" str
-  regsub -all "\[\026\002\037\017\]" $str "" str
-  return $str
+proc ::ck::strings::stripcolor { args } {
+  if { ![llength $args] } { return "" }
+  if { [llength $args] == 1 } {
+    return [regsub -all "(\026|\002|\037|\017|\003\[0-9\]{1,2}(,\[0-9\]{1,2})?)" [lindex $args 0] {}]
+  }
+  set ex [list]
+  foreach _ [lrange $args 0 end-1] {
+    switch -glob -- $_ {
+      -col* { lappend ex "\003\[0-9\]{1,2}(,\[0-9\]{1,2})?" }
+      -bol* { lappend ex "\002" }
+      -rev* { lappend ex "\026" }
+      -und* { lappend ex "\037" }
+      -cle* { lappend ex "\017" }
+      default { debug -warn "Bad option to stripcolor: %s" $_ }
+    }
+  }
+  if { ![llength $ex] } { return [lindex $args end] }
+  return [regsub -all "([join $ex |])" [lindex $args end] {}]
 }
 proc ::ck::strings::exists {char str} {
   if { [string first $char $str] == -1 } { return 0 } { return 1 }
@@ -206,21 +180,23 @@ proc ::ck::strings::nohighlight {str} {
 }
 proc ::ck::strings::rus2trans {str} {
   variable const
-  set xstr ""
-  for {set i 0} {$i < [::ck::strings::string length $str]} {incr i} {
-    set char [::ck::strings::string index $str $i]
-    if { [::ck::strings::string first $char $const(urus)] != -1 && [set idx [lsearch -exact $const(ur2t) $char]] != -1 } {
-      if { [expr $i + 1] == [::ck::strings::string length $str] || \
-	   [lsearch -exact $const(lr2t) [::ck::strings::string index $str [expr $i + 1]]] == -1 } {
-        lappend xstr [lindex $const(ur2t) [incr idx]]
-      } {
-	lappend xstr [::ck::strings::string totitle [lindex $const(ur2t) [incr idx]]]
+  array set map $const(r2t)
+  set l [llength [set str [split $str [set ret ""]]]]
+  for { set i 0 } { $i < $l } { incr i } {
+    set o [string tolower [set _ [lindex $str $i]]]
+    if { [info exists map($o)] } {
+      if { $o eq $_ } {
+	set _ $map($o)
+      } elseif { [string length $map($o)] == 1 || ($i + 1 == $l) \
+        || [string toupper [lindex $str [expr { $i + 1 }]]] eq [lindex $str [expr { $i + 1 }]] } {
+	  set _ [string toupper $map($o)]
+      } else {
+	set _ [string totitle $map($o)]
       }
-    } {
-      lappend xstr $char
     }
+    append ret $_
   }
-  return [::ck::strings::string map $const(lr2t) [join $xstr ""]]
+  return $ret
 }
 proc ::ck::strings::trans2rus { args } {
   set str [lindex $args 0]
