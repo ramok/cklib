@@ -1,6 +1,6 @@
 
 namespace eval ::ck::colors {
-  variable version 0.2
+  variable version 0.3
   variable ansi
   variable mirc
   variable form
@@ -112,17 +112,126 @@ proc ::ck::colors::color {args} {
   set cmd [lindex $args 0]
   switch -- $cmd {
     mirc2ansi { return [mirc2ansi [lindex $args 1]] }
+    splittext  { return [eval [concat splittext [lrange $args 1 end]]] }
     default {
-      moderror "Unknown cmd: $cmd"
+      debug -warn "Unknown cmd: $cmd"
     }
   }
 }
-proc ::ck::colors::cformat { text } {
+proc ::ck::colors::cformat { args } {
   variable f2m
-  return [string map $f2m $text]
+  set txt [string map $f2m [lindex $args end]]
+  if { [llength $args] > 1 } {
+    if { [string match "-optcol*" [lindex $args 0]] } {
+      regsub -all "(\003)0(\\d\\D)" $txt {\1\2} txt
+    }
+  }
+  return $txt
 }
 proc ::ck::colors::stripformat { text } {
   variable f2e
   return [string map $f2e $text]
 }
+proc ::ck::colors::splittext { args } {
+  set txt [split [lindex $args end] {}]
+  set args [lrange $args 0 end-1]
+  getargs -width int 80 -minwords int 3 -maxlines int 0
 
+  if { $(maxlines) > 0 } {
+    set txt [lrange $txt 0 [expr { $(width) * $(maxlines) }]]
+  }
+
+  set result [list]
+  set current ""
+  array set cr {c "" b 0 u 0 r 0}
+  array set sv {c "" b 0 u 0 r 0}
+  set lastwstart 0
+  set iswordnow  0
+  set wcount     0
+  set len [llength $txt]
+  set chw [set chn ""]
+  set curwidth 0
+  for { set i 0 } { $i < $len } { incr i } {
+    set slen 1
+    if { [regexp {\w} [set _ [lindex $txt $i]]] } {
+      set type w
+    } elseif { $_ eq "\003" } {
+      if { [string match {[0-9]} [lindex $txt [incr i]]] } {
+	append _ [lindex $txt $i]
+	if { [string match {[0-9]} [lindex $txt [incr i]]] } {
+	  append _ [lindex $txt $i]
+	  if { [lindex $txt [incr i]] eq "," } {
+	    append _ [lindex $txt $i]
+	    if { [string match {[0-9]} [lindex $txt [incr i]]] } {
+	      append _ [lindex $txt $i]
+	      if { [string match {[0-9]} [lindex $txt [incr i]]] } {
+		append _ [lindex $txt $i]
+	      } { incr i -1 }
+	    } { incr i -1 }
+	  } { incr i -1 }
+	} { incr i -1 }
+	set type c
+	set slen [string length $_]
+      } {
+        incr i -1
+	set type n
+      }
+    } elseif { [string first $_ "\002\017\037\026"] != -1 } {
+      set type c
+    } else {
+      set type n
+    }
+    if { $curwidth + $slen > $(width) } {
+      if { [string match "\[ \t\r\n\]" $_] } {
+	set iswordnow 0
+	continue
+      }
+      if { ($type eq "w" && !$iswordnow) || $(minwords) >= $wcount } {
+        set x $current
+	set current ""
+	array set sv [array get cr]
+      } {
+        set x [string range $current 0 [expr { $lastwstart - 1 }]]
+	set current [string range $current $lastwstart end]
+      }
+      lappend result [regsub -all "\\s*(\026|\002|\037|\017|\003\[0-9\]{1,2}(,\[0-9\]{1,2})?)*\\s*\$" $x {}]
+      if { $(maxlines) > 0 && [llength $result] == $(maxlines) } { return $result }
+      set x $sv(c)
+      if { $sv(b) } { append x "\002" }
+      if { $sv(u) } { append x "\037" }
+      if { $sv(r) } { append x "\026" }
+      set lastwstart [string length $x]
+      set curwidth [string length [set current [append x $current]]]
+      unset x
+      set wcount 1
+    }
+    if { $type eq "c" } {
+      switch -glob -- $_ {
+	"\002"  { set cr(b) [expr { !$cr(b) }] }
+	"\017"  { array set cr {c "" b 0 u 0 r 0} }
+	"\037"  { set cr(u) [expr { !$cr(u) }] }
+	"\003*" { set cr(c) $_ }
+	"\026"  { set cr(r) [expr { !$cr(r) }] }
+      }
+    } elseif { $type eq "n" } {
+      set iswordnow 0
+    } elseif { !$iswordnow } {
+      set iswordnow 1
+      array set sv [array get cr]
+      set lastwstart [string length $current]
+      incr wcount
+    }
+    incr curwidth $slen
+    append current $_
+  }
+  if { $current ne "" } { lappend result $current }
+  return $result
+}
+
+#proc w { args } {
+#  putlog "s:[join $args]"
+#  putlog "w:123456789012345678901234567890:"
+#  foreach _ [::ck::colors::splittxt -width 30 [join $args]] {
+#    putlog "w:${_}\017:"
+#  }
+#}
