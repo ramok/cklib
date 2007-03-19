@@ -31,9 +31,14 @@ encoding system utf-8
 #   - return <string> encoded in base64
 # [string decode64 <string>]
 #   - return <string> decoded from base64
+# [string escape -regexp|-tcl <string>]
+#   - return <string> with escaped special character for regexp/tcl
+# [string 2size <number> ?-bin? ?postfixes list?]
+#   - convert <number> to kb/mb/gb.
+#     -bin - uses 1000 == 1k
 
 namespace eval ::ck::strings {
-  variable version 0.5
+  variable version 0.6
   variable author "Chpock <chpock@gmail.com>"
 
   variable const
@@ -97,6 +102,48 @@ proc ::ck::strings::init {  } {
   }
 
   return 1
+}
+proc ::ck::strings::escape { type string } {
+  switch -glob -- $type {
+    "-reg*" - "reg*" { return [regsub -all {[][${}^?+*()|.\\]} $string {\\\0}] }
+    "-tcl" - "tcl"   { return [regsub -all {[][${}\\]} $string {\\\0}] }
+    default {
+      debug -err "unknown escape type <%s> for string: %s" $type $string
+      return ""
+    }
+  }
+}
+proc ::ck::strings::2size { args } {
+  set bin 0
+  set lvl [list "" kb Mb Gb Tb Pb Eb]
+  set num [lindex $args 0]
+  if { ![isnum -int -unsig $num] } {
+    debug -err "bad value <%s> for str2size" $num
+    set num 0
+  } {
+    foreach _ [lrange $args 1 end] {
+      if { $_ eq "-bin" } {
+        set bin 1
+      } {
+        set lvl $_
+      }
+    }
+  }
+  set bin [expr { $bin ? 1000 : 1024 }]
+  set i 0
+  while { $num > 999 } {
+    set num [expr { 1.0 * $num / $bin }]
+    if { $i + 1 >= [llength $lvl] } break { incr i 1 }
+  }
+  if { [llength [set num [split $num .]]] == 1 } { return [lindex $num 0][lindex $lvl $i] }
+  set _ [string trim [lindex $num 1] 0]
+  if { [string length [set num [lindex $num 0]]] > 2 || $_ eq "" } { return $num[lindex $lvl $i] }
+  append num .
+  while { [string length $num] < 4 && $_ ne "" } {
+    append num [string index $_ 0]
+    set _ [string range $_ 1 end]
+  }
+  return $num[lindex $lvl $i]
 }
 proc ::ck::strings::removeinvalid { string } {
   variable const
@@ -205,8 +252,9 @@ proc ::ck::strings::trans2rus { args } {
        d д s с m м t т b б} $str]
 }
 proc ::ck::strings::isnum { args } {
+  set str [lindex $args end]
+  set args [lrange $args 0 end-1]
   getargs -type choice [list "-int" "-float"] -unsig flag
-  set str [lindex $args 0]
   set patt "^"
   if { !$(unsig) } {
     append patt "-?"
@@ -446,6 +494,8 @@ proc _string {args} {
     removeinvalid -
     randomstr   -
     urlencode   -
+    2size       -
+    escape      -
     urldecode  {
       return [uplevel 1 [concat "::ck::strings::$cmd" [lrange $args 1 end]]]
     }
