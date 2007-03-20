@@ -3,14 +3,14 @@
 
 ::ck::require core 0.3
 ::ck::require eggdrop  0.2
-::ck::require colors   0.3
+::ck::require colors   0.4
 ::ck::require config   0.3
 ::ck::require auth     0.2
 ::ck::require sessions 0.3
 ::ck::require strings  0.6
 
 namespace eval ::ck::cmd {
-  variable version 0.6
+  variable version 0.7
   variable author  "Chpock <chpock@gmail.com>"
 
   variable MAGIC "\000:\000"
@@ -585,7 +585,8 @@ proc ::ck::cmd::reply { args } {
     -uniq flag \
     -bcast-targ list [list] \
     -multi flag \
-    -multi-max int 2
+    -multi-max int 2 \
+    -multi-only int -1
 
   if { $(doc) ne "" } {
     catch { replydoc $(doc) }
@@ -621,7 +622,7 @@ proc ::ck::cmd::reply { args } {
       set txt [::ck::colors::cformat -optcol $txt]
       lassign [makepfix "PRIVMSG" [list $Nick]] pre width
       if { $(multi) } {
-	foreach txt [color splittext -maxlines $(multi-max) -width $width $txt] {
+	foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
 	  put$mode "$pre$txt"
 	}
       } {
@@ -633,7 +634,7 @@ proc ::ck::cmd::reply { args } {
       if { $(private) || [::ck::config::config get ".${CmdConfig}.notice"] eq "1" } {
 	lassign [makepfix "NOTICE" [list $Nick]] pre width
 	if { $(multi) } {
-	  foreach txt [color splittext -maxlines $(multi-max) -width $width $txt] {
+	  foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
 	    put$mode "$pre$txt"
 	  }
 	} {
@@ -654,7 +655,7 @@ proc ::ck::cmd::reply { args } {
 	} {
 	  lassign [makepfix "PRIVMSG" [list $Channel]] pre width
 	  if { $(multi) } {
-	    foreach txt [color splittext -maxlines $(multi-max) -width $width $txt] {
+	    foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
 	      put$mode "$pre$txt"
 	    }
 	  } {
