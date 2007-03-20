@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd 0.4
+::ck::require cmd 0.6
 
 ## quote (list)
 # <quote> <date> <nick!ident@host> <qhashe> <chan> <gflags> <cflags>
@@ -26,7 +26,7 @@ proc ::quotes::init {} {
   cmd register quote ::quotes::run \
     -bind "q|uote" -config "quotes"
   cmd register addquote ::quotes::addquote -autousage -doc "addquote" \
-    -bind "addq|uote" -bind "quoteadd" -bind {\+quote} -config "quotes"
+    -bind "addq|uote" -bind "quoteadd" -bind {+quote} -config "quotes"
   cmd register delquote ::quotes::delquote -autousage -doc "delquote" \
     -bind "delq|uote" -bind "quotedel" -bind "-quote" -config "quotes"
 

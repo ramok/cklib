@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd   0.4
+::ck::require cmd   0.6
 ::ck::require http  0.2
 ::ck::require cache 0.2
 
@@ -17,7 +17,7 @@ namespace eval ::google {
 
 proc ::google::init {  } {
   cmd register google ::google::run -doc "google" -autousage \
-    -bind "google" -bind "гуго?ль?"
+    -bind "google" -force-regexp -bind "гуго?ль?"
 
   cmd doc "google" {~*!google* [номер] [запрос]~ - поиск в www.google.com. Если строка запроса не задана - подразумевается последний заданный.}
 

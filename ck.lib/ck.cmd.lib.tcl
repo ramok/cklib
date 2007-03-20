@@ -7,9 +7,10 @@
 ::ck::require config   0.3
 ::ck::require auth     0.2
 ::ck::require sessions 0.3
+::ck::require strings  0.6
 
 namespace eval ::ck::cmd {
-  variable version 0.5
+  variable version 0.6
   variable author  "Chpock <chpock@gmail.com>"
 
   variable MAGIC "\000:\000"
@@ -210,29 +211,31 @@ proc ::ck::cmd::register {id bindprc args} {
   set tcmd(dccmask) [list]
   set tcmd(namespace) [uplevel 1 [list namespace current]]
 
+  set frc_pfix [set frc_regexp 0]
+
   while { [llength $args] > 0 } {
     lpop args cmd
     switch -- $cmd {
       -bind   {
 	if { [lpop args mask] != "" } {
-	  lappend tcmd(pubbind) $mask
-	  lappend tcmd(dccbind) $mask
-	  lappend tcmd(msgbind) $mask
+	  lappend tcmd(pubbind) $mask $frc_regexp $frc_pfix
+	  lappend tcmd(dccbind) $mask $frc_regexp $frc_pfix
+	  lappend tcmd(msgbind) $mask $frc_regexp $frc_pfix
 	}
       }
-      -bindpub - -pubbind { if { [lpop args mask] != "" } { lappend tcmd(pubbind) $mask } }
-      -bindmsg - -msgbind { if { [lpop args mask] != "" } { lappend tcmd(msgbind) $mask } }
-      -binddcc - -dccbind { if { [lpop args mask] != "" } { lappend tcmd(dccbind) $mask } }
+      -bindpub - -pubbind { if { [lpop args mask] != "" } { lappend tcmd(pubbind) $mask $frc_regexp $frc_pfix } }
+      -bindmsg - -msgbind { if { [lpop args mask] != "" } { lappend tcmd(msgbind) $mask $frc_regexp $frc_pfix } }
+      -binddcc - -dccbind { if { [lpop args mask] != "" } { lappend tcmd(dccbind) $mask $frc_regexp $frc_pfix } }
       -mask   {
 	if { [lpop args mask] != "" } {
-	  lappend tcmd(pubmask) $mask
-	  lappend tcmd(dccmask) $mask
-	  lappend tcmd(msgmask) $mask
+	  lappend tcmd(pubmask) $mask $frc_pfix
+	  lappend tcmd(dccmask) $mask $frc_pfix
+	  lappend tcmd(msgmask) $mask $frc_pfix
         }
       }
-      -maskpub - -pubmask { if { [lpop args mask] != "" } { lappend tcmd(pubmask) $mask } }
-      -maskmsg - -msgmask { if { [lpop args mask] != "" } { lappend tcmd(msgmask) $mask } }
-      -maskdcc - -dccmask { if { [lpop args mask] != "" } { lappend tcmd(dccmask) $mask } }
+      -maskpub - -pubmask { if { [lpop args mask] != "" } { lappend tcmd(pubmask) $mask $frc_pfix } }
+      -maskmsg - -msgmask { if { [lpop args mask] != "" } { lappend tcmd(msgmask) $mask $frc_pfix } }
+      -maskdcc - -dccmask { if { [lpop args mask] != "" } { lappend tcmd(dccmask) $mask $frc_pfix } }
       -flood       { lpop args tcmd(flood)      }
       -floodusage  { lpop args tcmd(floodusage) }
       -flooderr    { lpop args tcmp(flooderr)   }
@@ -243,6 +246,8 @@ proc ::ck::cmd::register {id bindprc args} {
       -access      { lpop args tcmd(access)     }
       -noauth      { set tcmd(auth) 0           }
       -doc         { lpop args tcmd(doc)        }
+      -force-regexp { set frc_regexp 1 }
+      -force-prefix { set frc_pfix 1 }
       default {
 	debug -warn "Unknown option: %s" $cmd
       }
@@ -265,6 +270,8 @@ proc ::ck::cmd::register {id bindprc args} {
       -hook ::ck::cmd::cfg_resetbinds
     config register -id "notice" -type bool -default 0  \
      -desc "Reply command $id to user as notice." -access "m" -folder $tcmd(config) -ns $tcmd(namespace)
+    config register -id "pub.noprefix" -type bool -default 1 -hook ::ck::cmd::cfg_resetbinds \
+     -desc "Разрешено ли вызывать команду $id без указания префикса команды." -access "m" -folder $tcmd(config) -ns $tcmd(namespace)
   }
 
   if { $tcmd(pubmask) != "" || $tcmd(msgmask) != "" || \
@@ -302,46 +309,65 @@ proc ::ck::cmd::updatebinds { type { target "" } } {
     if { $tflt(type) != $type } continue
     lappend filtres $id $tflt(proc)
   }
+
+  set pfixmask [string escape -regexp [config get "prefix.$type"]]
+
+  debug -debug "Update cmds for <%s/%s>; Prefix: '%s'" $type $target $pfixmask
+
   foreach {id larray} [array get cmds] {
     array set tcmd $larray
-    debug -debug "Binding cmd <%s>" $id
-    switch -- $type {
-      "pub" {
-	if { ![cmd_checkchan $id $target] } {
-	  debug -debug "Cmd <%s> is disabled on <%s> due config." $id $target
-	  continue
-	}
-	set pfixmask {!?}
+    if { $type eq "pub" } {
+      if { ![cmd_checkchan $id $target] } {
+        debug -debug "Cmd <%s> is disabled on <%s> due config." $id $target
+        continue
       }
-      "msg" {
-	set pfixmask {}
-      }
-      "dcc" {
-	set pfixmask {\.}
+      if { $pfixmask ne "" } {
+        if { ![config get "pub.noprefix"] || [config get ".$tcmd(config).pub.noprefix"] ne "1" } {
+          debug -debug "Pub prefix sticky due config."
+        } {
+          set opfx $pfixmask
+          append pfixmask ?
+        }
       }
     }
-    foreach bnd [set "tcmd(${type}bind)"] {
+    foreach {bnd isre isfx} [set "tcmd(${type}bind)"] {
       if { $bnd == "" } continue
       if { [regexp {^(.+?)\|(.+)$} $bnd - a1 a2] } {
 	set a3 ""
 	set a4 ""
 	foreach ch [split $a2 ""] {
-	  append a3 "\($ch"
-	  append a4 "\)?"
+          append a3 {(?:}
+          if { !$isre && [string first $ch {[]{}()$^?+*|\.}] != -1 } { append a3 \\ }
+	  append a3 $ch
+	  append a4 {)?}
 	}
+        if { !$isre } { set a1 [string escape -regexp $a1] }
 	set bnd "$a1$a3$a4"
 	unset a1 a2 a3 a4
+      } elseif { !$isre } {
+        set bnd [string escape -regexp $bnd]
       }
-      set bnd "^$pfixmask\($bnd\)(\\s|\$)"
-      debug -debug "Bind <%s> for cmd <%s> in <%s@%s>" $bnd $id $target $type
+      if { $pfixmask ne "" && [info exists opfx] && $isfx } {
+        set bnd "^$opfx\(?:$bnd\)(:?\\s|\$)"
+        debug -debug "Bind <%s> for cmd <%s> in <%s@%s> (force prefix by cmd init)" $bnd $id $target $type
+      } {
+        set bnd "^$pfixmask\(?:$bnd\)(:?\\s|\$)"
+        debug -debug "Bind <%s> for cmd <%s> in <%s@%s>" $bnd $id $target $type
+      }
       lappend bindres $bnd $id
     }
-    foreach mask [set "tcmd\(${type}mask\)"] {
+    foreach {mask isfx} [set "tcmd\(${type}mask\)"] {
       if { $mask == "" } continue
-      set msk "^$pfixmask$mask"
-      debug -debug "Mask <%s> for cmd <%s> in <%s@%s>" $msk $id $target $type
+      if { $pfixmask ne "" && [info exists opfx] && $isfx } {
+        set msk "^$opfx$mask"
+        debug -debug "Mask <%s> for cmd <%s> in <%s@%s> (force prefix by cmd init)" $msk $id $target $type
+      } {
+        set msk "^$pfixmask$mask"
+        debug -debug "Mask <%s> for cmd <%s> in <%s@%s>" $msk $id $target $type
+      }
       lappend maskres $msk $id
     }
+    if { [info exists opfx] } { set pfixmask $opfx; unset opfx }
     unset tcmd
   }
   set bindmask([list "bind $type $target"]) $bindres

@@ -1,10 +1,11 @@
 
 encoding system utf-8
-::ck::require cmd   0.4
+::ck::require cmd   0.6
 ::ck::require http  0.2
+::ck::require strings 0.6
 
 namespace eval httputils {
-  variable version 1.0
+  variable version 1.1
   variable author  "Chpock <chpock@gmail.com>"
 
   namespace import -force ::ck::cmd::*
@@ -15,7 +16,7 @@ proc ::httputils::init {} {
   cmd register httphead ::httputils::httphead \
     -bind "http" -autousage -doc "http"
   cmd register httpheadadv ::httputils::httphead \
-    -bind "http\\+" -autousage -doc "http" -config httphead
+    -bind "http+" -autousage -doc "http" -config httphead
 
   cmd doc "http" {~*!http* <url>~ - получить информацию об URL.}
 
@@ -120,7 +121,7 @@ proc ::httputils::httphead { sid } {
       reply -err adv.prs $ReqUrl
     }
     if { [regexp {The size of this web page \((\d+) bytes\) has exceeded the maximum size of 1000000 bytes.} $title - szTotal] } {
-      reply -err adv.big $ReqUrl [msz $szTotal]
+      reply -err adv.big $ReqUrl [string 2size $szTotal]
     }
     regexp {<table\s.*?<tr\s.*?<tr\s.*?<td>(\d+)\s.*?</table>(.*)$} $HttpData - szTotal HttpData
 
@@ -146,29 +147,29 @@ proc ::httputils::httphead { sid } {
     regexp {<td>Total Ifra.*?<td>(\d+)<}  $DataExt - cnIfrm
 
     set out [list]
-    set_ [cformat total [msz $szTotal]]
+    set_ [cformat total [string 2size $szTotal]]
     lappend out $_
 
     set_ [list $cnHtml]
     if {$cnFrm} { lappend_ [cformat html.fr $cnFrm] }
     if {$cnIfrm} { lappend_ [cformat html.ifr $cnIfrm] }
     if { [llength $_] == 1 && $cnHtml == "1" } {
-      lappend out [cformat html1 [msz $szHtml]]
+      lappend out [cformat html1 [string 2size $szHtml]]
     } {
-      lappend out [cformat html [msz $szHtml] [cjoin $_ html.j]]
+      lappend out [cformat html [string 2size $szHtml] [cjoin $_ html.j]]
     }
 
     if { $szImg } {
       set_ [list]
-      lappend_ [cformat img.main [msz $szImgHtml] $cnImgHtml]
-      if { $cnImgCSS } { lappend_ [cformat img.css [msz $szImgCSS] $cnImgCSS] }
-      lappend out [cformat img [msz $szImg] [cjoin $_ img.j]]
+      lappend_ [cformat img.main [string 2size $szImgHtml] $cnImgHtml]
+      if { $cnImgCSS } { lappend_ [cformat img.css [string 2size $szImgCSS] $cnImgCSS] }
+      lappend out [cformat img [string 2size $szImg] [cjoin $_ img.j]]
     }
 
-    if { $szCSS } { lappend out [cformat css [msz $szCSS] $cnCSS] }
-    if { $szJS } { lappend out [cformat js [msz $szJS] $cnJS] }
-    if { $szMM } { lappend out [cformat mm [msz $szMM]] }
-    if { $szOther } { lappend out [cformat other [msz $szOther]] }
+    if { $szCSS } { lappend out [cformat css [string 2size $szCSS] $cnCSS] }
+    if { $szJS } { lappend out [cformat js [string 2size $szJS] $cnJS] }
+    if { $szMM } { lappend out [cformat mm [string 2size $szMM]] }
+    if { $szOther } { lappend out [cformat other [string 2size $szOther]] }
 
     if { [regexp -nocase "<p># Congratulations. This site is using HTTP compression" $HttpData] } {
       lappend out [cformat gzip.on]
@@ -182,13 +183,3 @@ proc ::httputils::httphead { sid } {
     reply -uniq %s [cjoin $out { }]
   }
 }
-
-proc ::httputils::msz { num } {
-  if { $num < 2048 } { return $num }
-  set num [expr { 1.0 * $num / 1024 }]
-  if { $num < 2048 } { return "[format %.2f $num]k" }
-  set num [expr { 1.0 * $num / 1024 }]
-  return "[format %.2f $num]M"
-}
-
-::httputils::init
