@@ -1,5 +1,7 @@
 
 encoding system cp1251
+::ck::require cmd
+
 namespace eval myscript {
   # Объявляем версию скрипта и автора (для виду)
   variable version 1.0
@@ -24,7 +26,7 @@ proc ::myscript::init {  } {
 # Процедура, исполняется при команде !runmyscript
 proc ::myscript::run { sid } {
   variable lock
-  # Экспортируем все переменные сессии
+  # Импортируем все переменные сессии
   session import
   # проверяем событие по которому вызвались, если CmdPass - тогда команда только вызвана
   if { $Event eq "CmdPass" } {
@@ -81,6 +83,3 @@ proc ::myscript::rerun { sid } {
   session event -sid [lindex $lock 0] Continue
   # дальше ничего не делаем, просто выходим
 }
-
-# Запускаем инит для скрипта
-::myscript::init
