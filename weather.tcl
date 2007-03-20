@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd 0.4
+::ck::require cmd 0.6
 ::ck::require cache
 ::ck::require http
 ::ck::require strings 0.3
@@ -27,7 +27,7 @@ proc ::weather::init {  } {
     {~*!weather* <псевдоним> = <город>~ - добавление псевдонима для города <город>.}
 
   cmd register weather ::weather::run -autousage -doc "weather" \
-    -bind "weather" -bind "погода"
+    -bind "weather" -bind "погода" -force-prefix -bind "w" -bind "п"
 
   config register -id "admflags" -type str -default "m" \
     -desc "Flags for access to change weather aliases." -access "n" -folder "weather"
