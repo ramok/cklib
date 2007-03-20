@@ -1,6 +1,6 @@
 
 namespace eval ::ck::colors {
-  variable version 0.3
+  variable version 0.4
   variable ansi
   variable mirc
   variable form
@@ -135,7 +135,11 @@ proc ::ck::colors::stripformat { text } {
 proc ::ck::colors::splittext { args } {
   set txt [split [lindex $args end] {}]
   set args [lrange $args 0 end-1]
-  getargs -width int 80 -minwords int 3 -maxlines int 0
+  getargs -width int 80 -minwords int 3 -maxlines int 0 -line int -1
+
+  if { $(line) != -1 } {
+    set (maxlines) [expr { $(line) + 1 }]
+  }
 
   if { $(maxlines) > 0 } {
     set txt [lrange $txt 0 [expr { $(width) * $(maxlines) }]]
@@ -195,7 +199,12 @@ proc ::ck::colors::splittext { args } {
 	set current [string range $current $lastwstart end]
       }
       lappend result [regsub -all "\\s*(\026|\002|\037|\017|\003\[0-9\]{1,2}(,\[0-9\]{1,2})?)*\\s*\$" $x {}]
-      if { $(maxlines) > 0 && [llength $result] == $(maxlines) } { return $result }
+      if { $(maxlines) > 0 && [llength $result] == $(maxlines) } {
+        if { $(line) != -1 } {
+          return [list [lindex $result end]]
+        }
+        return $result
+      }
       set x $sv(c)
       if { $sv(b) } { append x "\002" }
       if { $sv(u) } { append x "\037" }
@@ -225,7 +234,11 @@ proc ::ck::colors::splittext { args } {
     append current $_
   }
   if { $current ne "" } { lappend result $current }
-  return $result
+  if { $(line) != -1 } {
+    return [list [lindex $result end]]
+  } {
+    return $result
+  }
 }
 
 #proc w { args } {
