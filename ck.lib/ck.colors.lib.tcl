@@ -142,7 +142,8 @@ proc ::ck::colors::splittext { args } {
   }
 
   if { $(maxlines) > 0 } {
-    set txt [lrange $txt 0 [expr { $(width) * $(maxlines) }]]
+    # делаем maxlines+1 потому как нужен запас за "линией отреза" для правильной отрезки
+    set txt [lrange $txt 0 [expr { $(width) * ($(maxlines)+1) }]]
   }
 
   set result [list]
@@ -161,24 +162,24 @@ proc ::ck::colors::splittext { args } {
       set type w
     } elseif { $_ eq "\003" } {
       if { [string match {[0-9]} [lindex $txt [incr i]]] } {
-	append _ [lindex $txt $i]
-	if { [string match {[0-9]} [lindex $txt [incr i]]] } {
-	  append _ [lindex $txt $i]
-	  if { [lindex $txt [incr i]] eq "," } {
-	    append _ [lindex $txt $i]
-	    if { [string match {[0-9]} [lindex $txt [incr i]]] } {
-	      append _ [lindex $txt $i]
-	      if { [string match {[0-9]} [lindex $txt [incr i]]] } {
-		append _ [lindex $txt $i]
-	      } { incr i -1 }
-	    } { incr i -1 }
-	  } { incr i -1 }
-	} { incr i -1 }
-	set type c
-	set slen [string length $_]
+        append _ [lindex $txt $i]
+        if { [string match {[0-9]} [lindex $txt [incr i]]] } {
+          append _ [lindex $txt $i]
+          if { [lindex $txt [incr i]] eq "," } {
+            append _ [lindex $txt $i]
+            if { [string match {[0-9]} [lindex $txt [incr i]]] } {
+              append _ [lindex $txt $i]
+              if { [string match {[0-9]} [lindex $txt [incr i]]] } {
+                append _ [lindex $txt $i]
+              } { incr i -1 }
+            } { incr i -1 }
+          } { incr i -1 }
+        } { incr i -1 }
+        set type c
+        set slen [string length $_]
       } {
         incr i -1
-	set type n
+        set type n
       }
     } elseif { [string first $_ "\002\017\037\026"] != -1 } {
       set type c
@@ -187,16 +188,16 @@ proc ::ck::colors::splittext { args } {
     }
     if { $curwidth + $slen > $(width) } {
       if { [string match "\[ \t\r\n\]" $_] } {
-	set iswordnow 0
-	continue
+        set iswordnow 0
+        continue
       }
       if { ($type eq "w" && !$iswordnow) || $(minwords) >= $wcount } {
         set x $current
-	set current ""
-	array set sv [array get cr]
+        set current ""
+        array set sv [array get cr]
       } {
         set x [string range $current 0 [expr { $lastwstart - 1 }]]
-	set current [string range $current $lastwstart end]
+        set current [string range $current $lastwstart end]
       }
       lappend result [regsub -all "\\s*(\026|\002|\037|\017|\003\[0-9\]{1,2}(,\[0-9\]{1,2})?)*\\s*\$" $x {}]
       if { $(maxlines) > 0 && [llength $result] == $(maxlines) } {
@@ -216,11 +217,11 @@ proc ::ck::colors::splittext { args } {
     }
     if { $type eq "c" } {
       switch -glob -- $_ {
-	"\002"  { set cr(b) [expr { !$cr(b) }] }
-	"\017"  { array set cr {c "" b 0 u 0 r 0} }
-	"\037"  { set cr(u) [expr { !$cr(u) }] }
-	"\003*" { set cr(c) $_ }
-	"\026"  { set cr(r) [expr { !$cr(r) }] }
+        "\002"  { set cr(b) [expr { !$cr(b) }] }
+        "\017"  { array set cr {c "" b 0 u 0 r 0} }
+        "\037"  { set cr(u) [expr { !$cr(u) }] }
+        "\003*" { set cr(c) $_ }
+        "\026"  { set cr(r) [expr { !$cr(r) }] }
       }
     } elseif { $type eq "n" } {
       set iswordnow 0

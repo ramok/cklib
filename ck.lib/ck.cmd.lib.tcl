@@ -24,7 +24,7 @@ namespace eval ::ck::cmd {
   namespace import -force ::ck::files::datafile
   namespace import -force ::ck::colors::color
   namespace export cmd cmdchans cmd_checkchan
-  namespace export cformat cjoin cquote cmark
+  namespace export cformat cjoin cquote cmark rawformat
   namespace export reply replydoc checkaccess
   namespace export debug msgreg uidns getargs etimer fixenc* backenc* min max
   namespace export session
@@ -626,7 +626,7 @@ proc ::ck::cmd::reply { args } {
 	  put$mode "$pre$txt"
 	}
       } {
-        put$mode [string range "$pre$txt" 0 [incr width -1]]
+        put$mode $pre[string range $txt 0 [incr width -1]]
       }
     }
     "pub" {
@@ -638,18 +638,18 @@ proc ::ck::cmd::reply { args } {
 	    put$mode "$pre$txt"
 	  }
 	} {
-	  put$mode [string range "$pre$txt" 0 [incr width -1]]
+	  put$mode $pre[string range $txt 0 [incr width -1]]
 	}
       } {
 	if { $(broadcast) } {
 	  if { ![llength $(bcast-targ)] } { set (bcast-targ) [cmdchans $CmdId] }
 	  if { [::ck::config::config get "pub.multitarget"] } {
 	    lassign [makepfix "PRIVMSG" $(bcast-targ)] pre width
-	    put$mode [string range "$pre$txt" 0 [incr width -1]]
+	    put$mode $pre[string range $txt 0 [incr width -1]]
 	  } {
 	    foreach_ $(bcast-targ) {
 	      lassign [makepfix "PRIVMSG" [list $_]] pre width
-	      put$mode [string range "$pre$txt" 0 [incr width -1]]
+	      put$mode $pre[string range $txt 0 [incr width -1]]
 	    }
 	  }
 	} {
@@ -659,7 +659,7 @@ proc ::ck::cmd::reply { args } {
 	      put$mode "$pre$txt"
 	    }
 	  } {
-	    put$mode [string range "$pre$txt" 0 [incr width -1]]
+	    put$mode $pre[string range $txt 0 [incr width -1]]
 	  }
 	}
       }
@@ -750,6 +750,10 @@ proc ::ck::cmd::getfrm { afrm {defs ""}} {
     return [stripMAGIC $afrm]
   }
   return $defs
+}
+proc ::ck::cmd::rawformat { frmid } {
+  upvar sid sid
+  return [getfrm $frmid -]
 }
 proc ::ck::cmd::cformat { args } {
   upvar sid sid

@@ -309,13 +309,14 @@ proc ::ck::strings::parse_html { args } {
   set string [lindex $args 0]
   regsub -all {<!--.*?-->} $string {} string
   array set specs [list "quot" "'" "gt" ">" "lt" "<" "copy" "(c)" "amp" "&" "nbsp" " "]
-  while { [regexp -indices -nocase {(.*?)(&(?:[a-z]{2,7});|</?[^>]+>)} $string - pre aft] } {
+  while { [regexp -indices -nocase {([^<]*?)(&(?:[a-z]{2,7});|</?[^>]+>)} $string - pre aft] } {
+#    debug -debug "next! pre:%s: aft:%s:" [string range $string [lindex $pre 0] [lindex $pre 1]] [string range $string [lindex $aft 0] [lindex $aft 1]]
     if { [lindex $pre 1] != -1 } {
       if { $(text) ne "" } {
 	uplevel 1 [list set _text [string range $string [lindex $pre 0] [lindex $pre 1]]]
 	uplevel 1 $(text)
       } {
-	uplevel 1 [append _parsed [string range $string [lindex $pre 0] [lindex $pre 1]]]
+	uplevel 1 [list append _parsed [string range $string [lindex $pre 0] [lindex $pre 1]]]
       }
     }
     set spec [string range $string [lindex $aft 0] [lindex $aft 1]]
@@ -331,7 +332,7 @@ proc ::ck::strings::parse_html { args } {
 	uplevel 1 [list set _replace $spec_r]
 	uplevel 1 $(spec)
       } elseif { $spec_r ne "" } {
-	uplevel 1 [list [append _parsed $spec_r]]
+	uplevel 1 [list append _parsed $spec_r]
       }
     } elseif { $(tag) ne "" } {
       regexp {^<(/?)([^>\s]+)\s*([^>]*)} $spec - tag_state tag tag_param
