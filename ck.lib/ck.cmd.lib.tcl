@@ -150,12 +150,13 @@ proc ::ck::cmd::regdoc { args } {
   regsub -all {\[(.+?)\]} $text {\&K[\&R\1\&K]\&n} text
   regsub -all {<(.+?)>} $text   {\&K<\&R\1\&K>\&n} text
   set_ ""
+  set text [string map "~~ \000" $text]
   while { [regexp {^(.*?)~(.+?)~(.*)$} $text - a1 a2 a3] } {
     set a2 [string map [list "&n" "&n&U"] $a2]
     append_ $a1 &U $a2 &U
     set text $a3
   }
-  set text "$_$text"
+  set text [string map "\000 ~" "$_$text"]
   set text [::ck::colors::cformat $text]
   set_ [list $id [lindex $args 0] $text $(author) $(link)]
   set cmddoc($id) $_
