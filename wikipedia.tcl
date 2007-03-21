@@ -1,6 +1,6 @@
 
 encoding system utf-8
-::ck::require cmd   0.5
+::ck::require cmd   0.7
 ::ck::require http  0.2
 ::ck::require cache 0.2
 
@@ -17,13 +17,16 @@ proc ::wikipedia::init {} {
   cmd register wikipedia ::wikipedia::run -doc "wiki" -autousage \
     -bind "wiki|pedia" -bind "wp" -bind "вики|педия" -flood 10:60
 
-  cmd doc "wiki" {~*!wiki* [-номер] [язык] <статья>~ - запрос в Википедию. <номер> - вариант поиска, <язык> - двухбуквенное \
+  cmd doc -link "wiki.page" "wiki" {~*!wiki* [-номер] [язык] <статья>~ - запрос в Википедию. <номер> - вариант поиска, <язык> - двухбуквенное \
     обозначение языка &K(&nнапример&K: &Ben&n - английский, &Bfr&n - французкий&K).}
+  cmd doc -link "wiki" "wiki.page" {~*!wiki* <запрос>~~<номер>~ - вывод части ответа по номеру. Формат запроса - см. команду <wiki>.}
 
   config register -id "num.search" -type bool -default 0 \
     -desc "Добавлять ли номер результата поиска." -access "m" -folder "wikipedia"
-  config register -id "multi.count" -type int -default 2 \
+  config register -id "multi.count" -type int -default 1 \
     -desc "Сколько строк выдавать при выводе страницы вики." -access "m" -folder "wikipedia"
+  config register -id "extmark" -type bool -default 0 \
+    -desc "Помечать ли цветом ссылки на статьи." -access "m" -folder "wikipedia"
 
   cache register -nobotnet -nobotnick -ttl 10d -maxrec 30
 
@@ -37,6 +40,8 @@ proc ::wikipedia::init {} {
     search.onum0 &K[&R%s-%s&K]
     search.num0  &U%2$s
     search.num1  %s.&U%s
+    mark.page    &B
+    mark.new     ""
   }
 }
 proc ::wikipedia::run { sid } {
@@ -51,15 +56,20 @@ proc ::wikipedia::run { sid } {
       set sindex ""
     }
     if { [regexp {^-?(\w\w)\s+} $req - lang] } { regfilter {^-?\w\w\s+} req } { set lang "ru" }
+    if { [regexp {^(.*?)~(\d+)$} $req - req WikiPage] } {
+      if { [set WikiPage [string trimleft $WikiPage 0]] eq "" } { set WikiPage -1 }
+    } {
+      set WikiPage -1
+    }
     regsub -all -- {\s} $req {_} req
 
-    session export -grablist [list "lang" "req" "sindex"]
+    session export -grablist [list "lang" "req" "sindex" "WikiPage"]
 
     cache makeid $lang $req [set Mark "Search"]
     if { ![cache get HttpData] } {
       cache makeid $lang $req [set Mark ""]
       if { ![cache get HttpData] } {
-	http run "http://${lang}.wikipedia.org/wiki/[string urlencode [encoding convertto utf-8 $req]]" -redirects 5 -return
+        http run "http://${lang}.wikipedia.org/wiki/[string urlencode [encoding convertto utf-8 $req]]" -redirects 5 -return
       }
     }
   } elseif { $Event == "HttpResponse"}  {
@@ -71,9 +81,8 @@ proc ::wikipedia::run { sid } {
     cache put $HttpData
   }
 
-  if { [set_ [config get "multi.count"]] > 1 } {
-    session set CmdReplyParam [list "-multi" "-multi-max" $_]
-  }
+  if { [set_ [config get "multi.count"]] < 1 } { set_ 1 }
+  session set CmdReplyParam [list "-multi" "-multi-max" $_]
 
   regfilter {^.+?<!-- start content -->[\s\r\n]*} HttpData
   regfilter {[\s\r\n]*<!-- end content -->.+$} HttpData
@@ -95,9 +104,9 @@ proc ::wikipedia::run { sid } {
     if { $sindex eq "" } {
       if { [set r4 $r2] > [llength $resultraw] } { set r4 [llength $resultraw] }
       if { $r2 == $r3 } {
-	set resultnum [cformat search.onum0 $r1 $r4]
+        set resultnum [cformat search.onum0 $r1 $r4]
       } {
-	set resultnum [cformat search.onum1 $r1 $r4 $r3]
+        set resultnum [cformat search.onum1 $r1 $r4 $r3]
       }
       reply -noperson -return -uniq search $resultnum [cjoin $result search.j]
     }
@@ -126,27 +135,67 @@ proc ::wikipedia::run { sid } {
   # ссылки типа сноски
   regfilter -all {<sup[^>]+><a[^>]+>\[\d+\]</a></sup>} HttpData
   # находим первый параграф
-  regfilter -- {.*?<p>} HttpData
+  if { [regexp {^\s*<ul>(.*?)</ul>\s*<p>(.*)$} $HttpData - _ HttpData] } {
+    # Для некоторых типов статей ("Гандикап")
+    set HttpData "$_$HttpData"
+  } {
+    regfilter -- {.*?<p>} HttpData
+  }
   # проверяем существует ли статья
   if { [string first "=\"noarticletext" $HttpData] != -1 } {
     if { $Mark ne "Search" } {
       if { [regexp {<a href="(/wiki/[^/]+:Search/[^"]+)} $HttpData - newurl] } {
-	http run "http://${lang}.wikipedia.org$newurl" -redirects 5 -return -mark "Search"
+        http run "http://${lang}.wikipedia.org$newurl" -redirects 5 -return -mark "Search"
       }
     }
     reply -err noarticle
   }
+  # вырезаем трешевые div'ы
+  regfilter -all {<div class="notice noprint".*?</div>} HttpData
+  regfilter -all {<div class="floatleft".*?</div>} HttpData
+  regfilter -all {<div class="notice metadata".*?</div>} HttpData
   regsub -all -- {&#160;} $HttpData { } HttpData
-  set HttpData [html unspec $HttpData]
-  # замена для цветов
-  set HttpData [string map [list {&} {&&}] $HttpData]
-  regsub -nocase -all -- {</?b>} $HttpData {\&L} HttpData
-  regsub -nocase -all -- {</?i>} $HttpData {\&U} HttpData
-  # окончательно херим таги
-  set HttpData [html untag $HttpData]
-  # убираем символы которые наше ircd не видит
-  set HttpData [string removeinvalid $HttpData]
-  regsub -all -- {[\s\n\r]+} $HttpData { } HttpData
+  set extmark [config get "extmark"]
+  set nowM [set nowB [set nowU 0]]
+  set mark_page [rawformat mark.page]
+  set mark_new  [rawformat mark.new]
+  html parse -stripspace -stripbadchar \
+    -tag {
+      if { $_tag eq "b" } {
+        append _parsed {&L}
+        set nowB $_tag_open
+      } elseif { $_tag eq "i" } {
+        append _parsed {&U}
+        set nowU $_tag_open
+      } elseif { $_tag eq "li" && $_tag_open } {
+        append _parsed {* }
+      } elseif { $extmark && $_tag eq "a" } {
+        if { $nowM && !$_tag_open } {
+          set nowM 0
+          append _parsed {&n}
+          if { $nowB } { append _parsed {&L} }
+          if { $nowU } { append _parsed {&U} }
+        } elseif { !$nowM && $_tag_open } {
+          if { $mark_new ne "" && [lsearch -exact [split $_tag_param { }] {class="new"}] != -1 } {
+            set nowM 1
+            append _parsed $mark_new
+          } elseif { $mark_page ne "" && [regexp {href="/wiki/[^:"]+""?} $_tag_param] } {
+            set nowM 1
+            append _parsed $mark_page
+          }
+        }
+      }
+    } \
+    -text {
+      append _parsed [cquote $_text]
+    } \
+    -spec {
+      append _parsed [cquote $_replace]
+    } $HttpData
 
-  reply -uniq -noperson [string stripspace $HttpData]
+  if { $WikiPage != -1 } {
+    session set CmdReplyParam [list "-multi" "-multi-only" [incr WikiPage -1]]
+  }
+
+  reply -uniq -noperson [cmark $_parsed]
 }
