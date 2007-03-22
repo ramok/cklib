@@ -151,6 +151,8 @@ proc ::bashorgru::run { sid } {
   regsub -all -nocase {(((<br>)|^)\s*\S+\s+\([^\)]+\))<br>([^<]+)} $QuoteData {\1 \4} QuoteData
   # если только 1 слово в строке - джойнить, например если только 'ник:' в строке
   regsub -all -nocase {(((<br>)|^)\s*\S+\s*)<br>([^<]+)} $QuoteData {\1 \4} QuoteData
+  # логи с 'ник :' в одной строке
+  regsub -all -nocase {(((<br>)|^)\s*\S+\s+:\s*)<br>([^<]+)} $QuoteData {\1 \4} QuoteData
 
   set QuoteData [wsplit $QuoteData "<br>"]
 
