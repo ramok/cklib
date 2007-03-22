@@ -5,6 +5,24 @@ namespace eval ::ck::eggdrop {
   variable version 0.3
   variable cmds [list]
 }
+
+proc ::ck::eggdrop::init {  } {
+  foreach _ [binds ctcp] {
+    if { [lindex $_ 2] ne "CHAT" } continue
+    eval [linsert [lreplace $_ 3 3] 0 unbind]
+  }
+  bind ctcp - CHAT ::ck::eggdrop::chat_env
+  bind chon - *    ::ck::eggdrop::chat_check
+}
+proc ::ck::eggdrop::chat_env { 1 2 3 4 5 6 } {
+  variable chat_stamp [clock seconds]
+  *ctcp:CHAT $1 $2 $3 $4 $5 $6
+}
+proc ::ck::eggdrop::chat_check { 1 2 } {
+  variable chat_stamp
+  if { ![info exists chat_stamp] || [clock seconds] - $chat_stamp > 90 } return
+  *dcc:fixcodes $1 $2 .
+}
 proc ::ck::eggdrop::idx2host {idx} {
   foreach rec [dcclist] {
     if { [lindex $rec 0] == $idx } { return [fixencstr [lindex $rec 2]] }
