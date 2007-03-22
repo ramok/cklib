@@ -41,9 +41,9 @@ proc ::ck::eggdrop::putidx {idx txt} {
     set txt [string strongspace [color mirc2ansi $txt]]
   }
   if { [catch {set enc [::getuser [::idx2hand $idx] XTRA _ck.core.encoding]}] || $enc eq "" || [string length $enc] == 1 } {
-    ::putidx $idx [backencstr $txt]
+    ::putidx $idx [backencstr $txt]\r
   } {
-    ::putidx $idx [encoding convertto [string range $enc 1 end] $txt]
+    ::putidx $idx [encoding convertto [string range $enc 1 end] $txt]\r
   }
 }
 proc ::ck::eggdrop::makeproc { args } {
@@ -58,7 +58,7 @@ proc ::ck::eggdrop::makeproc { args } {
 proc ::ck::eggdrop::putfast { txt } {
   backenc txt
   append txt "\r\n"
-  ::putdccraw 0 [string bytelength $txt] $txt
+  ::putdccraw 0 [string length $txt] $txt
 }
 proc ::ck::eggdrop::putquick { txt args } {
 #  debug "out:%s:%s:" [string length $txt] [string bytelength $txt]
