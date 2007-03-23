@@ -79,7 +79,7 @@ proc ::bashorgru::run { sid } {
       config set "annon.last" $QuoteNum
     } {
       set QuoteNum [join [lrange $StdArgs 1 end] { }]
-      if { $QuoteNum eq "" || [string isnum -int -unsig -- $QuoteNum] } {
+      if { $QuoteNum eq "" || [regexp {^[nN№]\s*?(\d+)$} $QuoteNum - QuoteNum] } {
 	session set QuoteNum [string trimleft $QuoteNum "0"]
 	if { $QuoteNum == "" } {
 	  http run "http://bash.org.ru/quote.php" -return
@@ -141,8 +141,7 @@ proc ::bashorgru::run { sid } {
     lassign [lindex $SearchResult] QuoteNum QuoteData QuoteRate QuoteDate
   }
   # если первым указан канал
-  if { [regexp {(#\S+)<br>} $QuoteData - cadd] } {
-    regsub {(#\S+)<br>} $QuoteData {} QuoteData
+  if { [regexp {^\s*(#\S+)<br>(.*)$} $QuoteData - cadd QuoteData] } {
     set cadd [cformat chanadd $cadd]
   } {
     set cadd ""
