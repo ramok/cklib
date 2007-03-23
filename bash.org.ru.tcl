@@ -224,7 +224,7 @@ proc ::bashorgru::checkannonuce { } {
   variable annonuce
   if { ![config get "annon.enable"] } return
   set t1 [string trimleft [join [split [lindex [set_ [split [config get "annon.time"] -]] 0] :] .] 0]
-  set t2 [string trimleft [join [split [lindex $_ 1] :] .] 0]
+  set t2 [string trimleft [join [split [lindex_ 1] :] .] 0]
   set tc [string trimleft [clock format [clock seconds] -format %H.%M] 0]
   if { ($t1 < $t2 && ($tc < $t1 || $tc > $t2)) || ($tc > $t2 && $tc < $t1) } {
     debug -debug "annonuce disabled this time due config."
@@ -299,11 +299,11 @@ proc ::bashorgru::chkconfig { mode var oldv newv hand } {
     if { [llength [set_ [split $newv -]]] == 2 } {
       foreach_ $_ {
         if { [regexp {^([0-1]?\d|2[0-4])$} [lindex [set_ [split_ :]] 0]] } {
-          lappend check [string trimleft [lindex_ 0] 0]
+          lappend check [expr {[set x [string trimleft [lindex_ 0] 0]] eq ""?0:$x}]
           if { [lindex_ 0] eq "24" || [llength_] == 1 } {
             lappend check 0
           } elseif { ![regexp {^[0-5]?\d$} [lindex_ 1]] } continue {
-            lappend check [string trimleft [lindex_ 1] 0]
+            lappend check [expr {[set_ [string trimleft [lindex_ 1] 0]] eq ""?0:$_}]
           }
         }
       }
