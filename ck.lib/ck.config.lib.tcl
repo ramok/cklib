@@ -17,7 +17,7 @@ encoding system utf-8
 #    [LIST <1> <message> ?<newvalue>?] : show warn <message>, if <newvalue> exists - use it as value
 #    [LIST <2> <message> ?<newvalue>?] : show error <message>, if <newvalue> exists - use it as value, if not - no change setting
 
-::ck::require files   0.2
+::ck::require files   0.3
 ::ck::require colors  0.2
 ::ck::require eggdrop 0.3
 
@@ -38,9 +38,10 @@ namespace eval ::ck::config {
 
 proc ::ck::config::init {} {
   array init ::ck::config::rconf
-  datafile register config -bot -net
+  datafile register config -bot -net -backup
   load
-  bind dcc - "set" ::ck::config::cset
+  bind dcc - "set"  ::ck::config::cset
+  bind dcc - "set?" ::ck::config::cset?
 
   config register -folder ".core" -id "encoding" -access "" -personal \
     -type encoding -default "" -desc "Codepage in patyline."
@@ -373,7 +374,9 @@ proc ::ck::config::access {h cid targhand} {
   return 1
 }
 
-proc ::ck::config::cset {h idx mask} {
+
+proc ::ck::config::cset? { 1 2 3 } { cset $1 $2 $3 1 }
+proc ::ck::config::cset {h idx mask {help 0}} {
   variable lconf
   variable rconf
 
@@ -381,7 +384,12 @@ proc ::ck::config::cset {h idx mask} {
 
   set mask [split [string trim $mask] " "]
   if { [llength $mask] > 1 } {
-    set setvalue [join [lrange $mask 1 end] " "]
+    if { !$help } {
+      if { [set setvalue [join [lrange $mask 1 end] " "]] eq "?" } {
+        unset setvalue
+        set help 1
+      }
+    }
     set mask [lindex $mask 0]
   } elseif { [llength $mask] } {
     set mask [lindex $mask 0]
@@ -463,13 +471,17 @@ proc ::ck::config::cset {h idx mask} {
       confsetdefault $(id) $targhand
       unset {}
     } else {
+      if { [string length $setvalue] > 1 && [string index $setvalue 0] eq "\"" \
+        && [string index $setvalue end] eq "\"" } {
+          set setvalue [string range $setvalue 1 end-1]
+      }
       array init {} $rconf([lindex $match 0])
       switch -- $(type) {
 	bool {
 	  set setvalue [string tolower $setvalue]
-	  if { $setvalue == "on" || $setvalue == "1" || $setvalue == "yes" } {
+	  if { $setvalue eq "on" || $setvalue eq "true" || $setvalue == "1" || $setvalue eq "yes" } {
 	    set setvalue 1
-	  } elseif { $setvalue == "off" || $setvalue == "0" || $setvalue == "no"} {
+	  } elseif { $setvalue eq "off" || $setvalue eq "false" || $setvalue == "0" || $setvalue eq "no" } {
 	    set setvalue 0
 	  } else {
 	    set err "err.bool"
@@ -576,26 +588,36 @@ proc ::ck::config::cset {h idx mask} {
       }
     }
 
-    set val [get "-$id" $targhand]
-    if { ($(hide) || [access $h $id $targhand] < 1) && ![get "?$id" $targhand] } {
-      set frm "hide"
-    } {
+    if { $help } {
+      set frm "desc"
       switch -- $(type) {
-	bool    { if { $val } { set frm "bool1" } { set frm "bool0" } }
-	int     { set frm "int"   }
-	float   { set frm "float" }
-	time    {
-	  regexp -nocase -- {^(\d+)(s|m|h|d)?$} $val - a1 a2
-	  set xval [format [cformat [frm time]] $a1 $a2]
-	}
-	list    {
-	  if { [llength $val] == 0 } {
-	    set frm "list0"
-	  } {
-	    set xval [format [cformat [frm list]] [join $val [cformat [frm list.j]]]]
-	  }
-	}
-	default { if { $val == "" } { set frm "str0" } { set frm "str1" } }
+        int     { set val "integer" }
+        str     { set val "string" }
+        default { set val $(type) }
+      }
+      set xval [format [cformat [frm desc]] $(desc) $val]
+    } {
+      set val [get "-$id" $targhand]
+      if { ($(hide) || [access $h $id $targhand] < 1) && ![get "?$id" $targhand] } {
+        set frm "hide"
+      } {
+        switch -- $(type) {
+          bool    { if { $val } { set frm "bool1" } { set frm "bool0" } }
+          int     { set frm "int"   }
+          float   { set frm "float" }
+          time    {
+            regexp -nocase -- {^(\d+)(s|m|h|d)?$} $val - a1 a2
+            set xval [format [cformat [frm time]] $a1 $a2]
+          }
+          list    {
+            if { [llength $val] == 0 } {
+              set frm "list0"
+            } {
+              set xval [format [cformat [frm list]] [join $val [cformat [frm list.j]]]]
+            }
+          }
+          default { if { $val == "" } { set frm "str0" } { set frm "str1" } }
+        }
       }
     }
 
@@ -625,14 +647,14 @@ proc ::ck::config::cset {h idx mask} {
 
 #  main   &G|&n %-20s&K : %s
 ::ck::msgreg -ns ::ck::config {
-  ban1   &G.-&K[&nMask: %s&K]&G---&g--&K-- -
+  ban1   &G.-&K[&nМаска: %s&K]&G---&g--&K-- -
   maink  %-*s
   main   &G|&n %s&K: %s
   mainat1 &B
   mainat2 &n
   folder &G|&n &L%s&L&P+ &K(&n%s&K)
-  ban2   &G`---&K[&nTotal: %s&K]&G-----&g--&G--&g----&K-&g--&K-- - :: -
-  novar  &G`-&K[&R No variables found. &K]&G--&g--&G-&g-&K-
+  ban2   &G`---&K[&nВсего: %s&K]&G-----&g--&G--&g----&K-&g--&K-- - :: -
+  novar  &G`-&K[&R Переменных не найдено. &K]&G--&g--&G-&g-&K-
   bool1  &Con
   bool0  &coff
   int    &G%s
@@ -643,14 +665,15 @@ proc ::ck::config::cset {h idx mask} {
   list0  &K|<empty list>|
   str0   &K<null>
   str1   &n%s
-  deny   &rYou don't have access for change variable &B'&R%s&B'
+  desc   &n%s &K(&B%s&K)
+  deny   &rУ Вас нет прав на изменение переменной &B'&R%s&B'
   hide   &R<&rhidden&R>
-  err.bool  &RCan't set variable &K<&B%s&K>&R to &K<&B%s&K>&R, it is boolean.
-  err.int   &RCan't set variable &K<&B%s&K>&R to &K<&B%s&K>&R, it is integer.
-  err.time  &RCan't set variable &K<&B%s&K>&R to &K<&B%s&K>&R, it is time interval \(<num>\[s|m|h|d\])."
-  err.float &RCan't set variable &K<&B%s&K>&R to &K<&B%s&K>&R, it is float.
-  err.enc   &RCan't set variable &K<&B%s&K>&R to &K<&B%s&K>&R, unknown encoding. &rSupport: &n%s
+  err.bool  &RОшибка установки переменной &K<&B%s&K>&R в значение &K<&B%s&K>&R, она логического типа &K(&non/off/true/false/yes/no/1/0&K)
+  err.int   &RОшибка установки переменной &K<&B%s&K>&R в значение &K<&B%s&K>&R, она целочисленного типа.
+  err.time  &RОшибка установки переменной &K<&B%s&K>&R в значение &K<&B%s&K>&R, она временного типа &K(&n<число>&K[&ns|m|h|d&K])
+  err.float &RОшибка установки переменной &K<&B%s&K>&R в значение &K<&B%s&K>&R, она числового типа.
+  err.enc   &RОшибка установки переменной &K<&B%s&K>&R в значение &K<&B%s&K>&R, неизвестная кодировка. &rИзвестны: &n%s
   err.setw  &RWarning&K: &n%s
-  err.set   &RError while set &K<&B%s&K>: &n%s
+  err.set   &RОшибка установки переменной &K<&B%s&K>: &n%s
   err.badhandle &RError! Пользователь&B %s&R не найден.
 }
