@@ -2,7 +2,7 @@
 ::ck::require lists
 
 namespace eval ::ck::files {
-  variable version 0.2
+  variable version 0.3
   variable author  "Chpock <chpock@gmail.com>"
 
   variable datareg
@@ -80,11 +80,11 @@ proc ::ck::files::make_temp_directory { {id ""} } {
 proc ::ck::files::register {id args} {
   variable datareg
 
-  getargs -bot flag -net flag -id flag
+  getargs -bot flag -net flag -id flag -backup flag
   set fn [file join $::ck::datapath $id]
   if { $(net) } { append fn ".$::ck::ircnet"  }
   if { $(bot) } { append fn ".$::ck::ircnick" }
-  set datareg($id) [list $fn $(id) $(bot) $(net)]
+  set datareg($id) [list $fn $(id) $(bot) $(net) $(backup)]
   return 1
 }
 proc ::ck::files::filename {id {scid ""}} {
@@ -119,6 +119,12 @@ proc ::ck::files::get {id {scid ""}} {
   return $ret
 }
 proc ::ck::files::putlist {id list {scid ""}} {
+  if { ![llength $list] } {
+    if { [catch { file delete [filename $id $scid] } errMsg] } {
+      debug -warn "error while delete datafile <%s>." [filename $id $scid]
+    }
+    return 1
+  }
   set fid [::open [filename $id $scid] w]
   fconfigure $fid -encoding utf-8
   puts -nonewline $fid $list
@@ -134,6 +140,12 @@ proc ::ck::files::getarray {id arrname {scid ""}} {
 }
 proc ::ck::files::putarray {id arrname {scid ""}} {
   upvar $arrname arr
+  if { [array size arr] == 0 } {
+    if { [catch { file delete [filename $id $scid] } errMsg] } {
+      debug -warn "error while delete datafile <%s>." [filename $id $scid]
+    }
+    return 1
+  }
   set fid [::open [filename $id $scid] w]
   fconfigure $fid -encoding utf-8
   puts -nonewline $fid [array get arr]
