@@ -198,6 +198,7 @@ proc ::ck::debug { args } {
 	::console [lindex $_ 0] -d
       }
       set xtxt [cformat $txt]
+      if { ![procexists ::ck::eggdrop::putidx] } { append xtxt \r }
       putidx [lindex $_ 0] $xtxt
       unset xtxt
     }
