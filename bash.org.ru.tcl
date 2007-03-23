@@ -79,7 +79,7 @@ proc ::bashorgru::run { sid } {
       config set "annon.last" $QuoteNum
     } {
       set QuoteNum [join [lrange $StdArgs 1 end] { }]
-      if { $QuoteNum eq "" || [regexp {^[nN№]\s*?(\d+)$} $QuoteNum - QuoteNum] } {
+      if { $QuoteNum eq "" || [regexp {^[nN№]?\s*(\d+)$} $QuoteNum - QuoteNum] } {
 	session set QuoteNum [string trimleft $QuoteNum "0"]
 	if { $QuoteNum == "" } {
 	  http run "http://bash.org.ru/quote.php" -return
