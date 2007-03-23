@@ -5,7 +5,7 @@ encoding system utf-8
 ::ck::require cache 0.2
 
 namespace eval ::bashorgru {
-  variable version 1.0
+  variable version 1.1
   variable author  "Chpock <chpock@gmail.com>"
   variable annonuce
 
@@ -46,6 +46,9 @@ proc ::bashorgru::init {} {
   config register -id "annon.max" -type int -default 30 \
     -desc "Сколько одновременно хранить анонсируемых цитат." -access "n" -folder "bashorgru" \
     -disableon [list "annon.enable" 0]
+  config register -id "annon.time" -type str -default "00:00-24:00" \
+    -disableon [list "annon.enable" 0] -hook chkconfig -access "n" -folder "bashorgru" \
+    -desc "Интервал времени когда разрешено анонсирование новых цитат. Формат - ЧЧ1:ММ1-ЧЧ2:ММ2. Анонс будет разрешен начиная со времени ЧЧ1:ММ1 до ЧЧ2:ММ2."
 
   msgreg {
     err.parse   &rОшибка обработки &Bbash.org.ru
@@ -63,6 +66,7 @@ proc ::bashorgru::init {} {
     tailx         &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s&K; &cОстальные &B%s&c строк можно прочитать на &B&U%s&U&K ]&G---&g-&G--&g--&K-&g-&K----
     to.private &cЦитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c будет отправлена к Вам в приват.
     anon.big &cНовая цитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c, посмотреть ее можно по адресу &B&Uhttp://bash.org.ru/quote.php?num=%s&U&c .
+    err.badtime Неверно задан интервал времени. Формат - ЧЧ1:ММ1-ЧЧ2:ММ2.
   }
 
   etimer -norestart -interval [config get "annon.update"] "bashorgru.update" ::bashorgru::checkupdate
@@ -216,9 +220,16 @@ proc ::bashorgru::parse { HttpData } {
   }
   return $_
 }
-proc ::bashorgru::checkannonuce {  } {
+proc ::bashorgru::checkannonuce { } {
   variable annonuce
   if { ![config get "annon.enable"] } return
+  set t1 [string trimleft [join [split [lindex [set_ [split [config get "annon.time"] -]] 0] :] .] 0]
+  set t2 [string trimleft [join [split [lindex $_ 1] :] .] 0]
+  set tc [string trimleft [clock format [clock seconds] -format %H.%M] 0]
+  if { ($t1 < $t2 && ($tc < $t1 || $tc > $t2)) || ($tc > $t2 && $tc < $t1) } {
+    debug -debug "annonuce disabled this time due config."
+    return
+  }
   if { [info exists annonuce] && [llength $annonuce] } {
     if { ![llength [lfilter -nocase -keep -- [channels] [config get "annon.chans"]]] } {
       debug -err "No channels for annonuce."
@@ -283,6 +294,23 @@ proc ::bashorgru::checkupdate { {sid ""} } {
 }
 proc ::bashorgru::chkconfig { mode var oldv newv hand } {
   if { ![string equal -length 3 $mode "set"] } return
+  if { $mode eq "set" && [string match "*.time" $var] } {
+    set check [list]
+    if { [llength [set_ [split $newv -]]] == 2 } {
+      foreach_ $_ {
+        if { [regexp {^([0-1]?\d|2[0-4])$} [lindex [set_ [split_ :]] 0]] } {
+          lappend check [string trimleft [lindex_ 0] 0]
+          if { [lindex_ 0] eq "24" || [llength_] == 1 } {
+            lappend check 0
+          } elseif { ![regexp {^[0-5]?\d$} [lindex_ 1]] } continue {
+            lappend check [string trimleft [lindex_ 1] 0]
+          }
+        }
+      }
+    }
+    if { [llength $check] != 4 } { return [list 2 [::ck::frm err.badtime]] }
+    return [list 1 "" [eval [concat format {%02u:%02u-%02u:%02u} $check]]]
+  }
   if { [string match "*.update" $var] } {
     etimer -interval $newv "bashorgru.update" ::bashorgru::checkupdate
   } elseif { [string match "*.interval" $var] } {
