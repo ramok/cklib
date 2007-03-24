@@ -29,6 +29,8 @@ proc ::bashorgru::init {} {
     -desc "При каком количестве строк в цитате отправлять цитату в приват." -access "n" -folder "bashorgru"
   config register -id "num.max" -type int -default 10 \
     -desc "Максимальное количество строк на фразу." -access "n" -folder "bashorgru"
+  config register -id "random.rate" -type bool -default 1 \
+    -desc "Отбирать для рандома самые рейтинговые цитаты." -access "n" -folder "bashorgru"
   config register -id "annon.enable" -type bool -default 0 \
     -desc "Разрешить анонс новых цитат на каналы." -access "n" -folder "bashorgru" -hook chkconfig
   config register -id "annon.update" -type time -default 2h \
@@ -122,9 +124,21 @@ proc ::bashorgru::run { sid } {
 	debug -err "Error while parse page."
 	reply -err parse
       }
-      lassign [lindex $HttpData 0] RealQuoteNum QuoteData QuoteRate QuoteDate
-      if { $QuoteNum != "" && $QuoteNum != $RealQuoteNum } { reply -err badnum $QuoteNum }
-      set QuoteNum $RealQuoteNum
+      if { $QuoteNum ne "" } {
+        lassign [lindex $HttpData 0] RealQuoteNum QuoteData QuoteRate QuoteDate
+        if { $QuoteNum != $RealQuoteNum } { reply -err badnum $QuoteNum }
+        set QuoteNum $RealQuoteNum
+      } elseif { ![config get "random.rate"] } {
+        lassign [lindex $HttpData 0] QuoteNum QuoteData QuoteRate QuoteDate
+      } {
+        set max 0
+        foreach_ $HttpData {
+          if { [lindex_ 2] > $max || ![info exists QuoteData] } {
+            lassign $_ QuoteNum QuoteData QuoteRate QuoteDate
+            set max $QuoteRate
+          }
+        }
+      }
     }
   }
   if { $CmdEventMark eq "Annonuce" } {
