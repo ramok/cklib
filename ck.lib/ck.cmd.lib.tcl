@@ -272,7 +272,8 @@ proc ::ck::cmd::register {id bindprc args} {
     config register -id "notice" -type bool -default 0  \
      -desc "Reply command $id to user as notice." -access "m" -folder $tcmd(config) -ns $tcmd(namespace)
     config register -id "pub.noprefix" -type bool -default 1 -hook ::ck::cmd::cfg_resetbinds \
-     -desc "Разрешено ли вызывать команду $id без указания префикса команды." -access "m" -folder $tcmd(config) -ns $tcmd(namespace)
+     -desc "Разрешено ли вызывать команду $id без указания префикса команды." -access "m" -folder $tcmd(config) -ns $tcmd(namespace) \
+     -disableon [list .mod.cmd.pub.noprefix 0]
   }
 
   if { $tcmd(pubmask) != "" || $tcmd(msgmask) != "" || \
@@ -461,15 +462,26 @@ proc ::ck::cmd::invoke_cmd { args } {
     -text str "" \
     -cmdid str "" \
     -cmddcc str "" \
+    -inline flag \
     -mark str ""
 
   array set tcmd $cmds($(cmdid))
+
+  if { $(inline) } {
+    session set CmdConfig $tcmd(config)
+    session set CmdId $(cmdid)
+    session set CmdNamespace $tcmd(namespace)
+    session hook default $tcmd(bind)
+    session event CmdPass
+    return -code return
+  }
+
+  set CmdConfig   $tcmd(config)
   set CmdAccess   $tcmd(access)
   set CmdNeedAuth $tcmd(auth)
   set CmdChannel  $(channel)
   set StdArgs     [split [string stripspace [string stripcolor $(text)]] { }]
   set CmdReturn   [list]
-  set CmdConfig   $tcmd(config)
   set CmdEvent    [lindex {msg dcc pub custom} $(event)]
 
   session create -proc $tcmd(bind)
