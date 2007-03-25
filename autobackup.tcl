@@ -98,6 +98,7 @@ proc ::autobackup::backup {  } {
 }
 
 proc ::autobackup::chkconfig { mode var oldv newv hand } {
-  if { ![string equal -length 3 $mode "set"] } return
+  if { ![string equal -length 3 $mode "set"] } { return 0 }
   etimer -interval $newv ::autobackup::backup
+  return 0
 }
