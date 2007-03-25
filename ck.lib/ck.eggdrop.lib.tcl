@@ -1,4 +1,5 @@
 
+encoding system utf-8
 ::ck::require colors 0.2
 
 namespace eval ::ck::eggdrop {
@@ -37,11 +38,17 @@ proc ::ck::eggdrop::idx2flags {idx} {
   }
 }
 proc ::ck::eggdrop::putidx {idx txt} {
-  if { [string exists "T" [idx2flags $idx]] } {
-    set txt [string strongspace [color mirc2ansi $txt]]
-  }
-  if { [catch {set enc [::getuser [::idx2hand $idx] XTRA _ck.core.encoding]}] || $enc eq "" || [string length $enc] == 1 } {
+  if { [string exists "T" [idx2flags $idx]] } { set txt [string strongspace [color mirc2ansi $txt]] }
+  if { [catch {::getuser [::idx2hand $idx] XTRA _ck.core.encoding} enc] || [string length $enc] < 2 } {
     ::putidx $idx [backencstr $txt]\r
+  } elseif { [info exists ::sp_version] } {
+    if { [string equal -nocase [set x [encoding system]] [set enc [string range $enc 1 end]]] } {
+      ::putidx $idx $txt\r
+    } {
+      encoding system $enc
+      ::putidx $idx $txt\r
+      encoding system $x
+    }
   } {
     ::putidx $idx [encoding convertto [string range $enc 1 end] $txt]\r
   }

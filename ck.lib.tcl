@@ -250,6 +250,7 @@ proc ::ck::source { fn { apath - } } {
     while { [gets $fid line] != -1 } {
       if { [regexp {^\s*encoding\s+system\s+([^\s]+)\s*$} $line - aenc] } {
 	set fenc $aenc
+        break
       }
     }
     close $fid
