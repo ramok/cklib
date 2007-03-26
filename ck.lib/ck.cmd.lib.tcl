@@ -442,13 +442,6 @@ proc ::ck::cmd::checkaccess { {ret ""} } {
     if { $ret ne "" } { return -code return }
     return 0
   }
-  # TODO: join in one string without temp-vars & with [string compare]
-  session import -exact Nick
-  if { [set_ [getuser $Handle XTRA AUTH_NICK]] != $Nick } {
-    reply -private -- [::ck::frm auth.nick] $_
-    if { $ret != "" } { return -code return }
-    return 0
-  }
   return 1
 }
 proc ::ck::cmd::invoke_cmd { args } {
