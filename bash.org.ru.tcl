@@ -164,14 +164,18 @@ proc ::bashorgru::run { sid } {
   } {
     set cadd ""
   }
+  #удаляем пустые строки
+  regsub -all -nocase {<br>(\s*<br>)+} $QuoteData {<br>} QuoteData
+  regfilter -nocase {^(\s*(<br>)?\s*)+} QuoteData
+  regfilter -nocase {(\s*(<br>)?\s*)+$} QuoteData
   # автоматом переделываем логи аськи
-  regsub -all -nocase {(((<br>)|^)\s*\S+\s+\([^\)]+\))<br>([^<]+)} $QuoteData {\1 \4} QuoteData
+  regsub -all -nocase {(((<br>)|^)\s*[^\s<]+\s+\([^\)]+\))<br>([^<]+)} $QuoteData {\1 \4} QuoteData
   # если только 1 слово в строке - джойнить, например если только 'ник:' в строке
-  regsub -all -nocase {(((<br>)|^)\s*\S+\s*)<br>([^<]+)} $QuoteData {\1 \4} QuoteData
+  regsub -all -nocase {(((<br>)|^)\s*[^\s<]+\s*)<br>([^<]+)} $QuoteData {\1 \4} QuoteData
   # логи с 'ник :' в одной строке
-  regsub -all -nocase {(((<br>)|^)\s*\S+\s+:\s*)<br>([^<]+)} $QuoteData {\1 \4} QuoteData
+  regsub -all -nocase {(((<br>)|^)\s*[^\s<]+\s+:\s*)<br>([^<]+)} $QuoteData {\1 \4} QuoteData
 
-  set QuoteData [lfilter -value "" -- [wsplit $QuoteData "<br>"]]
+  set QuoteData [wsplit $QuoteData "<br>"]
 
   if { [llength $QuoteData] >= [config get "num.to.private"] && $CmdEvent eq "pub" } {
     if { $CmdEventMark eq "Annonuce" } {
