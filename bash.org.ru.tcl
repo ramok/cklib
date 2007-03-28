@@ -171,7 +171,7 @@ proc ::bashorgru::run { sid } {
   # логи с 'ник :' в одной строке
   regsub -all -nocase {(((<br>)|^)\s*\S+\s+:\s*)<br>([^<]+)} $QuoteData {\1 \4} QuoteData
 
-  set QuoteData [wsplit $QuoteData "<br>"]
+  set QuoteData [lfilter -value "" -- [wsplit $QuoteData "<br>"]]
 
   if { [llength $QuoteData] >= [config get "num.to.private"] && $CmdEvent eq "pub" } {
     if { $CmdEventMark eq "Annonuce" } {
