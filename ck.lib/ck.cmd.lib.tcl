@@ -262,29 +262,32 @@ proc ::ck::cmd::register {id bindprc args} {
   set cmds($id) [array get tcmd]
 #  set cmds_flood($id) $tcmd(flood)
 
-  if { $tcmd(pubmask) != "" || $tcmd(pubbind) != "" } {
-    config register -id "chanallow" -type list -default "*" \
-      -desc "List of channels were command $id is allowed." -access "m" -folder $tcmd(config) -ns $tcmd(namespace) \
-      -hook ::ck::cmd::cfg_resetbinds
-    config register -id "chandeny" -type list -default "" \
-      -desc "List of channels were command $id is forbidden." -access "m" -folder $tcmd(config) -ns $tcmd(namespace) \
-      -hook ::ck::cmd::cfg_resetbinds
-    config register -id "notice" -type bool -default 0  \
-     -desc "Reply command $id to user as notice." -access "m" -folder $tcmd(config) -ns $tcmd(namespace)
-    config register -id "pub.noprefix" -type bool -default 1 -hook ::ck::cmd::cfg_resetbinds \
-     -desc "Разрешено ли вызывать команду $id без указания префикса команды." -access "m" -folder $tcmd(config) -ns $tcmd(namespace) \
-     -disableon [list .mod.cmd.pub.noprefix 0]
-  }
-
-  if { $tcmd(pubmask) != "" || $tcmd(msgmask) != "" || \
-    $tcmd(msgbind) != "" || $tcmd(pubbind) != "" } {
-      config register -id "msgmode" -type str -default quick \
-        -desc "Send-reply mode. Can be <fast>, <quick>, <serv> or <help>." -access "m" -folder $tcmd(config) \
-        -ns $tcmd(namespace) -hook ::ck::cmd::cfg_msgmode
-  }
-
   config register -id "nocolors" -type bool -default 0  \
     -desc "Remove colors from command $id replys." -access "m" -folder $tcmd(config) -ns $tcmd(namespace)
+
+  config register -id "chanallow" -type list -default "*" \
+    -desc "List of channels were command $id is allowed." -access "m" -folder $tcmd(config) -ns $tcmd(namespace) \
+    -hook ::ck::cmd::cfg_resetbinds
+  config register -id "chandeny" -type list -default "" \
+    -desc "List of channels were command $id is forbidden." -access "m" -folder $tcmd(config) -ns $tcmd(namespace) \
+    -hook ::ck::cmd::cfg_resetbinds
+  config register -id "notice" -type bool -default 0  \
+   -desc "Reply command $id to user as notice." -access "m" -folder $tcmd(config) -ns $tcmd(namespace)
+  config register -id "pub.noprefix" -type bool -default 1 -hook ::ck::cmd::cfg_resetbinds \
+   -desc "Разрешено ли вызывать команду $id без указания префикса команды." -access "m" -folder $tcmd(config) -ns $tcmd(namespace) \
+   -disableon [list .mod.cmd.pub.noprefix 0]
+
+  config register -id "msgmode" -type str -default quick \
+    -desc "Send-reply mode. Can be <fast>, <quick>, <serv> or <help>." -access "m" -folder $tcmd(config) \
+    -ns $tcmd(namespace) -hook ::ck::cmd::cfg_msgmode
+
+  if { $tcmd(pubmask) eq "" && $tcmd(pubbind) eq "" } {
+    config disable ".$tcmd(config).chanallow" ".$tcmd(config).chandeny" \
+      ".$tcmd(config).notice" ".$tcmd(config).pub.noprefix"
+    if { $tcmd(msgbind) eq "" && $tcmd(msgmask) eq "" } {
+      config disable ".$tcmd(config).msgmode"
+    }
+  }
 
   array init bindmask
 }
