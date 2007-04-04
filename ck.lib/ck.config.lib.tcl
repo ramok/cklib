@@ -53,8 +53,10 @@ proc ::ck::config::config { args } {
     register ::ck::config::register \
     get      ::ck::config::get \
     exists   ::ck::config::exists \
+    enable   ::ck::config::active \
     active   ::ck::config::active \
-    inactive ::ck::config::inactive \
+    disable  ::ck::config::disable \
+    inactive ::ck::config::disable \
     set      ::ck::config::confset
 }
 proc ::ck::config::register { args } {
@@ -129,24 +131,30 @@ proc ::ck::config::exists { id } {
   variable rconf
   return [info exists rconf($id)]
 }
-proc ::ck::config::active { id } {
+proc ::ck::config::active { args } {
   variable rconf
-  if { [info exists rconf($id)] } {
-    array set {} $rconf($id)
-    set (disable) 0
-    set rconf($id) [array get {}]
-  } {
-    debug -warning "Bad id: <$id>"
+  foreach id $args {
+    if { [info exists rconf($id)] } {
+      array set {} $rconf($id)
+      set (disable) 0
+      set rconf($id) [array get {}]
+      unset {}
+    } {
+      debug -warning "Bad id: <$id>"
+    }
   }
 }
-proc ::ck::config::disable { id } {
+proc ::ck::config::disable { args } {
   variable rconf
-  if { [info exists rconf($id)] } {
-    array set {} $rconf($id)
-    set (disable) 0
-    set rconf($id) [array get {}]
+  foreach id $args {
+    if { [info exists rconf($id)] } {
+      array set {} $rconf($id)
+      set (disable) 1
+      set rconf($id) [array get {}]
+    } {
+      debug -warn "Bad id: <$id>"
+    }
   }
-  debug -warn "Bad id: <$id>"
 }
 # всегда возвращает необработанный дефолтный параметр параметр
 proc ::ck::config::getdefault { id {handle ""} } {
@@ -413,6 +421,8 @@ proc ::ck::config::cset {h idx mask {help 0}} {
   set matchx [list]
   foreach id [array names rconf] {
     array init {} $rconf($id)
+
+    if { [string index $(lid) 0] eq "_" } continue
 
     if { [llength $(disableon)] } {
       debug -debug "Param <%s> have field <disableon>, so check parent param\(%s\)..." \
