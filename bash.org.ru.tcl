@@ -217,8 +217,8 @@ proc ::bashorgru::run { sid } {
     }
     if { [expr rand()] < 0.5 } { set frm "1" } { set frm "2" }
     reply -noperson "prequote$frm" $_
-    if { [incr linenum] >= [config get num.max] } {
-      reply -noperson -return tailx $QuoteRate $QuoteDate [expr { [llength $QuoteData] } - $linenum] \
+    if { [incr linenum] >= [config get num.max] && [set_ [expr { [llength $QuoteData] } - $linenum]] } {
+      reply -noperson -return tailx $QuoteRate $QuoteDate $_ \
 	"http://bash.org.ru/quote.php?num=$QuoteNum"
     }
   }
