@@ -228,7 +228,7 @@ proc ::bashorgru::parse { HttpData } {
   set_ [list]
   while { [regexp {<a href="\./quote\.php\?num=(\d+)"(.+?)class="dat">[\s\r\n]*(.+)$} $HttpData - a1 x1 a2] } {
     if { ![regexp {\+</a>\s+([0-9-]+)\s+<a href=} $x1 - a3] } { set a3 "?" }
-    if { ![regexp -- {-</a>\s+\]\s+.+?, ([^<]+?)\s*</td>} $x1 - a4] } { set a4 "?" }
+    if { ![regexp -- {</a>[^,<>]+?, ([^<]+?)\s*</td>} $x1 - a4] } { set a4 "?" }
     regexp {^(.+?)\s*</td>\s*(.+)$} $a2 - a2 HttpData
     lappend_ [list $a1 $a2 $a3 $a4]
     debug -debug "qnum: %s" $a1
