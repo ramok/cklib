@@ -197,12 +197,12 @@ proc ::bashorgru::run { sid } {
     session set CmdEvent "msg"
   }
 
-  if { $QuoteChasm && [string length $SearchPhrase] } {
+  if { $CmdEventMark eq "Annonuce" } {
+    reply -noperson header.new $QuoteNum $cadd
+  } elseif { $QuoteChasm && [string length $SearchPhrase] } {
     reply -noperson header.chasm+ $SearchPhrase $QuoteNum $cadd
   } elseif { $QuoteChasm } {
     reply -noperson header.chasm $QuoteNum $cadd
-  } elseif { $CmdEventMark eq "Annonuce" } {
-    reply -noperson header.new $QuoteNum $cadd
   } elseif { [info exists SearchResult] } {
     if { [string length $SearchPhrase] } {
       reply -noperson header.search $SearchPhrase $SearchNum $TotalCount $QuoteNum $cadd
@@ -234,12 +234,12 @@ proc ::bashorgru::run { sid } {
     if { [expr rand()] < 0.5 } { set frm "1" } { set frm "2" }
     reply -noperson "prequote$frm" $_
     if { [incr linenum] >= [config get num.max] && [set_ [expr { [llength $QuoteData] } - $linenum]] } {
-      if { $QuoteChasm } { reply -noperson -return tailxchasm $QuoteRate $_ }
+      if { [info exists QuoteChasm] && $QuoteChasm } { reply -noperson -return tailxchasm $QuoteRate $_ }
       reply -noperson -return tailx $QuoteRate $QuoteDate $_ \
 	"http://bash.org.ru/quote.php?num=$QuoteNum"
     }
   }
-  reply -noperson tail[expr { $QuoteChasm ? {.chasm} : {} }] $QuoteRate $QuoteDate
+  reply -noperson tail[expr { [info exists QuoteChasm] && $QuoteChasm ? {.chasm} : {} }] $QuoteRate $QuoteDate
 }
 proc ::bashorgru::parse { HttpData } {
   set_ [list]
