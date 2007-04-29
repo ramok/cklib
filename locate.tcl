@@ -14,7 +14,7 @@ namespace eval ::locate {
 
 proc ::locate::init { } {
 
-  cmd register locator ::locate::run -autousage -doc "locate" \
+  cmd register locate ::locate::run -autousage -doc "locate" \
     -bind "loc|ate" -bind "лок|атор" -flood 8:60
 
   cmd doc "locate" {~*!loc* <ip/domain/nick>~ - попытка выяснить географическое местонахождение.}
@@ -124,6 +124,29 @@ proc ::locate::got_whois { sid } {
   for { set i 0 } { $i < [llength $whoisdata] } { incr i } {
     set line [lindex $whoisdata $i]
     switch -- $dbtype {
+      "KRNIC" {
+	if { [set idx [string first "#" $line]] != -1 } {
+	  set line [string trim [string range $line 0 [incr idx -1]]]
+	}
+	# если пустая строчка или камент - начало нового блока
+	if { $line == "" } {
+	  if { [llength $obj] } { lappend objects $obj; set obj [list] }
+	  continue
+	}
+        if { ![llength $obj] && [regexp {^\[\s*(.+?)\s*\]$} $line - k] } {
+          lappend obj $k ""
+          continue
+        }
+	# обычные пара ключ-значение
+	if { [regexp {^([ A-Za-z\-0-9]+?)\s*:\s+(.+)$} $line - k v] } {
+	  lappend obj $k $v
+	  continue
+	}
+        # игнорируем шапку полезной инфы
+        if ![llength $objects] continue
+        if [regexp {^-+$} $line] break
+	debug -notc "Unknown string while parse KRNIC database for IP <%s>: %s" $LocIP $line
+      }
       "ARIN" {
 	if { [set idx [string first "#" $line]] != -1 } {
 	  set line [string trim [string range $line 0 [incr idx -1]]]
@@ -138,7 +161,7 @@ proc ::locate::got_whois { sid } {
 	  lappend obj $k $v
 	  continue
 	}
-	debug -warn "Unknown string <%s> while parse ARIN database for IP <%s>." $line $LocIP
+	debug -notc "Unknown string <%s> while parse ARIN database for IP <%s>." $line $LocIP
       }
       "RIPE" {
 	if { [set idx [string first "#" $line]] != -1 } {
@@ -169,10 +192,12 @@ proc ::locate::got_whois { sid } {
 	  lappend obj $k $v
 	  continue
 	}
-	debug -warn "Unknown string <%s> while parse RIPE database for IP <%s>." $line $LocIP
+	debug -notc "Unknown string <%s> while parse RIPE database for IP <%s>." $line $LocIP
       }
       default {
-	if { [string first "inetnum:" $line] == 0 } {
+        if { [string first "# ENGLISH" $line] == 0 } {
+          set dbtype "KRNIC"
+        } elseif { [string first "inetnum:" $line] == 0 } {
 	  set dbtype "RIPE"
 	} elseif { [string first "OrgName:" $line] == 0 } {
 	  set dbtype "ARIN"
@@ -209,12 +234,51 @@ proc ::locate::got_whois { sid } {
   set address [list]
   set description [list]
   set netblock    ""
+  foreach_ $objects { debug -raw "OBJ: %s" $_ }
   foreach obj $objects {
     switch -- "${dbtype}@[lindex $obj 0]" {
+      "KRNIC@IPv4 Address" {
+        foreachkv $obj {
+          set country "KR"
+          switch -- $k {
+            "IPv4 Address" { set v [split $v -]; set netblock [list [string trim [lindex $v 0]] [string trim [lindex $v end]]] }
+          }
+        }
+      }
+      "KRNIC@Organization Information" {
+        foreachkv $obj {
+          switch -- $k {
+            "Org Name" { set description [list [string trim $v]] }
+            "Address" {
+	      foreach v [split $v {,}] {
+		if { [set v [string trim $v]] eq "" } continue
+		if { [lexists $description $v] } continue
+		if { [lexists $address $v] } continue
+		lappend address $v
+	      }
+            }
+          }
+        }
+      }
+      "KRNIC@Technical Contact Information" {
+        foreachkv $obj {
+          switch -- $k {
+            "Org Name" { set description [list [string trim $v]] }
+            "Address" {
+	      foreach v [split $v {,}] {
+		if { [set v [string trim $v]] eq "" } continue
+		if { [lexists $description $v] } continue
+		if { [lexists $address $v] } continue
+		lappend address $v
+	      }
+            }
+          }
+        }
+      }
       "RIPE@inetnum" {
 	foreachkv $obj {
 	  switch -- $k {
-	    "inetnum" { set v [split $v { }]; set netblock [list [lindex $v 0] [lindex $v 2]] }
+	    "inetnum" { set v [split $v { }]; set netblock [list [lindex $v 0] [lindex $v end]] }
 	    "country" { set country $v }
 	    "city"    { set city $v }
 	    "owner" -
@@ -285,15 +349,18 @@ proc ::locate::got_whois { sid } {
       while { [llength $a1] < 4 } { lappend a1 {0} }
       set netblock [cformat main.net [join $a1 .] $a2]
     } {
-      set fip [ip2num [lindex $netblock 0]]
-      set sip [ip2num [lindex $netblock 1]]
-      for { set netbits 32 } { $netbits > 0 } { incr netbits -1 } {
-	if { [maskip $sip $netbits] == $fip } break
-      }
-      if { $netbits == 0 } {
-	set netblock [cformat main.range [lindex $netblock 0] [lindex $netblock 1]]
+      if { [catch {set fip [ip2num [lindex $netblock 0]]; set sip [ip2num [lindex $netblock 1]]}] } {
+        debug -warn "Error while locate ip %s, convert netblock ips to long (%s)" $LocIP [join $netblock {, }]
+        set netblock [cformat main.net "?" "?"]
       } {
-	set netblock [cformat main.net [lindex $netblock 0] $netbits]
+        for { set netbits 32 } { $netbits > 0 } { incr netbits -1 } {
+          if { [maskip $sip $netbits] == $fip } break
+        }
+        if { $netbits == 0 } {
+          set netblock [cformat main.range [lindex $netblock 0] [lindex $netblock 1]]
+        } {
+          set netblock [cformat main.net [lindex $netblock 0] $netbits]
+        }
       }
     }
   }
