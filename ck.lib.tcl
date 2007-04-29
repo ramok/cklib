@@ -16,6 +16,7 @@ namespace eval ::ck {
 
   variable author  "Chpock <chpock@gmail.com>"
 
+  namespace forget *
   namespace export -clear debug require procexists uid source etimer
   namespace export fixenc* backenc*
 }
@@ -39,6 +40,10 @@ proc ::ck::init {} {
   foreach ns [namespace children ::ck] {
     catch { unset "${ns}::version" }
   }
+  foreach _ [binds] {
+    if [string match ::ck::* [lindex $_ 4]] { unbind [lindex $_ 0] [lindex $_ 1] [lindex $_ 2] [lindex $_ 4] }
+  }
+
 
   ### Init variables
   set frmpath       [list "scripts" "."]
@@ -60,9 +65,15 @@ proc ::ck::init {} {
   }
 
   if { [info exists ::irc_encoding] } {
-    set ircencoding $::irc_encoding
+    set ircencoding [string tolower $::irc_encoding]
   } {
     debug -warn "Please set IRC encoding variable \"irc_encoding\" in config-file."
+  }
+
+  if { [lsearch -exact [encoding names] $ircencoding] == -1 } {
+    debug -err {IRC encoding '%s' not known by bot.} $ircencoding
+    unset version
+    return
   }
 
   if { [info exists "::botnet-nick"] && ${::botnet-nick} != "" } {
@@ -99,8 +110,9 @@ proc ::ck::init {} {
   ::ck::require -botnet
   ::ck::require -ircservices
 
+  if { [info exists ::sp_version] } { set _ " SuZi-patch v$::sp_version detected." } { set _ "" }
 #  frmload
-  debug "ck.lib v%s: initialization successfully." $::ck::version
+  debug "ck.lib v%s: initialization successfully.%s" $::ck::version $_
 }
 # levels:
 #  -9 - debug
@@ -267,17 +279,18 @@ proc ::ck::source { fn { apath - } } {
     if { [catch [list uplevel #0 [list source $xfn]] errStr] } {
       debug -error "Error while loading %s: %s" $xfn $errStr
       foreach _ [split $::errorInfo "\n"] { debug -err- "  $_" }
+      if [info exists senc] { encoding system $senc }
       return "-"
     } {
       if { [info exists senc] } {
 	set add "in encoding $fenc"
+        encoding system $senc
       } {
 	set add "in default encoding"
       }
       if { [info exists noquiet] } { debug -info "Script %s %s succsefuly loaded." $xfn $add }
       set ::ck::loaded($xfn) [file mtime $xfn]
     }
-    if { [info exists senc] } { encoding system $senc }
     set fn [file tail $fn]
     if { [string match -nocase "*.tcl" $fn] } { set fn [string range $fn 0 end-4] }
     set fn "::${fn}::init"
@@ -381,29 +394,26 @@ proc ::ck::etimer_run { id } {
   }
   set etimers($id) [lreplace $_ 3 3 [after [lindex_ 1] [list ::ck::etimer_run $id]]]
 }
-proc ::ck::fixenc { args } {
-  if { [info exists ::sp_version] } return
-  foreach __xvar $args {
-    upvar $__xvar mvar
-    set mvar [encoding convertfrom $::ck::ircencoding $mvar]
-#    unset mvar
+if [info exists sp_version] {
+  proc ::ck::fixenc args {}
+  proc ::ck::backenc args {}
+  proc ::ck::fixencstr str return\ \$str
+  proc ::ck::backencstr str return\ \$str
+} {
+  proc ::ck::fixenc { args } {
+    foreach __xvar $args {
+      upvar $__xvar mvar
+      set mvar [encoding convertfrom $::ck::ircencoding $mvar]
+    }
   }
-}
-proc ::ck::backenc { args } {
-  if { [info exists ::sp_version] } return
-  foreach __xvar $args {
-    upvar $__xvar mvar
-    set mvar [encoding convertto $::ck::ircencoding $mvar]
-#    unset mvar
+  proc ::ck::backenc { args } {
+    foreach __xvar $args {
+      upvar $__xvar mvar
+      set mvar [encoding convertto $::ck::ircencoding $mvar]
+    }
   }
-}
-proc ::ck::fixencstr { str } {
-  if { [info exists ::sp_version] } { return $str }
-  return [encoding convertfrom $::ck::ircencoding $str]
-}
-proc ::ck::backencstr { str } {
-  if { [info exists ::sp_version] } { return $str }
-  return [encoding convertto $::ck::ircencoding $str]
+  proc ::ck::fixencstr { str } { return [encoding convertfrom $::ck::ircencoding $str] }
+  proc ::ck::backencstr { str } { return [encoding convertto $::ck::ircencoding $str] }
 }
 proc ::ck::libinfo { {from "::ck"} } {
   set out [list]
