@@ -176,6 +176,8 @@ proc ::bashorgru::run { sid } {
   } {
     set cadd ""
   }
+  # удаляем мешающий тэг <index>
+  regfilter -all -nocase {\s*</?index>\s*} QuoteData
   #удаляем пустые строки
   regsub -all -nocase {<br>(\s*<br>)+} $QuoteData {<br>} QuoteData
   regfilter -nocase {^(\s*(<br>)?\s*)+} QuoteData
