@@ -78,7 +78,7 @@ proc ::rate::run { sid } {
       set from $Text
       set to [config get "def.currency"]
     }
-    if { [regexp {(\d+(?:\.\d*))} $Text - RateValue] } {
+    if { [regexp {(\d+(?:\.\d+)?)} $Text - RateValue] } {
       regfilter {\d+\.?\d*} Text
       set RateValue [string trimleft $RateValue 0]
       if { $RateValue == 0 } { set RateValue 1 }
