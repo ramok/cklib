@@ -8,6 +8,7 @@ namespace eval ::bashorgru {
   variable version 1.1
   variable author  "Chpock <chpock@gmail.com>"
   variable annonuce
+  variable lastQuote
 
   namespace import -force ::ck::cmd::*
   namespace import -force ::ck::cache::cache
@@ -18,14 +19,17 @@ proc ::bashorgru::init {} {
   cmd register bashorgru ::bashorgru::run \
     -bind "bash" -bind "баш" -bind "bash+" -bind "баш+" -flood 10:60
 
-  cmd doc -link [list "bash.search" "bash.last" "bash.chasm"] "bash" \
+  cmd doc -link [list "bash.search" "bash.last" "bash.chasm" "bash.vote"] "bash" \
     {~*!bash* [номер]~ - вывод цитаты из bash.org.ru по номеру или случайная цитата.}
   cmd doc -link "bash" "bash.search" {~*!bash* [номер] <фраза>~ - поиск цитаты на bash.org.ru и показать совпадение по номеру.}
   cmd doc -link "bash" "bash.last" {~*!bash* [номер] last~ - просмотр последних цитат.}
   cmd doc -link "bash" "bash.chasm" {~*!bash+* [фраза]~ - поиск по бездне. Если <фраза> не задана, выводится случайная цитата из бездны.}
+  cmd doc -link "bash" "bash.vote" {~*!bash* [номер]+-~ - голосование за цитату <номер>. Если номер не задан, голосование идет за последнюю цитату.}
 
   cache register -nobotnet -nobotnick -ttl 12h -maxrec 40
 
+  config register -id "access.vote" -type str -default "o|-" \
+    -desc "Флаги необходимые для доступа к голосованию." -access "n" -folder "bashorgru"
   config register -id "num.to.private" -type int -default 5 \
     -desc "При каком количестве строк в цитате отправлять цитату в приват." -access "n" -folder "bashorgru"
   config register -id "num.max" -type int -default 10 \
@@ -60,6 +64,7 @@ proc ::bashorgru::init {} {
     err.badnum  &rК сожалению цитата &bN&B%s&r не найдена.
     chanadd  &K/&R%s
     header.chasm  &g.-&G-&K[&n Бездна N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
+    vote          &cУ цитаты &BN&r%s&c рейтинг&K:&R %s
     header.chasm+ &g.-&G-&K[&n Поиск по бездне&K(&p%s&K)&n N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
     header.search &g.-&G-&K[&n Поиск&K(&p%s&K):&R%s&K/&r%s&n N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
     header        &g.-&G-&K[&n Цитата N&B%s%s &K]&G------&g-&G--&g--&K-&g-&K-- -
@@ -80,8 +85,10 @@ proc ::bashorgru::init {} {
 }
 proc ::bashorgru::run { sid } {
   variable annonuce
+  variable lastQuote
   session import
   if { $Event == "CmdPass" } {
+    session set QuoteVote ""
     if { $CmdEventMark eq "Annonuce" } {
       if { ![llength annonuce] } { debug -err "No quotes for annonuce."; return }
       lassign [lindex $annonuce end] QuoteNum QuoteData QuoteRate QuoteDate
@@ -94,13 +101,37 @@ proc ::bashorgru::run { sid } {
         session set SearchPhrase $QuoteNum
         http run "http://bash.org.ru/abyss" -return -query [list "text" $SearchPhrase] -query-codepage cp1251
       }
-      if { $QuoteNum eq "" || [regexp {^[nN№]?\s*(\d+)$} $QuoteNum - QuoteNum] } {
-	session set QuoteNum [string trimleft $QuoteNum "0"]
-	if { $QuoteNum eq "" } {
-	  http run "http://bash.org.ru/random" -return
-	} {
-	  http run "http://bash.org.ru/quote/$QuoteNum" -return
-	}
+      set_ 0
+      if { $QuoteNum eq "" || [set_ [string match {[-+]} $QuoteNum]] || [regexp {^([+-])1$} $QuoteNum - 4] || \
+        [regexp {^([-+]?)[nN№]?\s*(\d+)\s*([-+]?)$} $QuoteNum - 1 QuoteNum 3] } {
+          if { [info exists 4] } {
+            set_ $4
+            set QuoteNum ""
+          } elseif { $_ } {
+            set_ $QuoteNum
+            set QuoteNum ""
+          } elseif { [info exists 1] } {
+            if { $1 ne "" } { set_ $1 } elseif { $3 ne "" } { set_ $3 } else { set_ "" }
+          } { set_ "" }
+          session set QuoteNum [string trimleft $QuoteNum "0"]
+          if { $_ ne "" } {
+            session set QuoteVote $_
+            if { $QuoteNum eq "" } {
+              if { ![info exists lastQuote] } {
+                debug -notc "Try to vote on unknown quote."
+                return
+              }
+              session set QuoteNum $lastQuote
+            }
+            set_ [expr {$QuoteVote eq {+}?{/rulez}:{/sux}}]
+            session set CmdAccess [config get access.vote]
+            checkaccess -return
+          }
+          if { $QuoteNum eq "" } {
+            http run "http://bash.org.ru/random" -return
+          } {
+            http run "http://bash.org.ru/quote/$QuoteNum$_" -return
+          }
       } {
 	if { ![regexp {^-?(\d*)\s*(.+)$} $QuoteNum - SearchNum SearchPhrase] } { replydoc "bash.search" }
 	if { $SearchNum < 1 } { set SearchNum 1 }
@@ -199,7 +230,10 @@ proc ::bashorgru::run { sid } {
     session set CmdEvent "msg"
   }
 
-  if { $CmdEventMark eq "Annonuce" } {
+  set lastQuote $QuoteNum
+  if { $QuoteVote ne "" } {
+    reply -return vote $QuoteNum $QuoteRate
+  } elseif { $CmdEventMark eq "Annonuce" } {
     reply -noperson header.new $QuoteNum $cadd
   } elseif { $QuoteChasm && [string length $SearchPhrase] } {
     reply -noperson header.chasm+ $SearchPhrase $QuoteNum $cadd
