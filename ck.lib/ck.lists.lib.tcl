@@ -80,6 +80,9 @@ proc ::lfilter { args } {
   }
   return $ret
 }
+proc ::lvalid { list } {
+  return [expr { ![catch [list llength $list]] }]
+}
 
 proc ::lremove { list args } {
   foreach x $args {
