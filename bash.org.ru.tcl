@@ -24,7 +24,7 @@ proc ::bashorgru::init {} {
   cmd doc -link "bash" "bash.last" {~*!bash* [номер] last~ - просмотр последних цитат.}
   cmd doc -link "bash" "bash.chasm" {~*!bash+* [фраза]~ - поиск по бездне. Если <фраза> не задана, выводится случайная цитата из бездны.}
 
-  cache register -nobotnet -nobotnick -ttl 1d -maxrec 40
+  cache register -nobotnet -nobotnick -ttl 12h -maxrec 40
 
   config register -id "num.to.private" -type int -default 5 \
     -desc "При каком количестве строк в цитате отправлять цитату в приват." -access "n" -folder "bashorgru"
@@ -68,9 +68,8 @@ proc ::bashorgru::init {} {
     prequote1     &g|&n %s
     prequote2     &G|&n %s
     tail          &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s &K]&G---&g-&G--&g--&K-&g-&K----
-    tail.chasm    &g`-&G-&K[&n Рейтинг: &r%s &K]&G---&g-&G--&g--&K-&g-&K----
     tailx         &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s&K; &cОстальные &B%s&c строк можно прочитать на &B&U%s&U&K ]&G---&g-&G--&g--&K-&g-&K----
-    tailxchasm    &g`-&G-&K[&n Рейтинг: &r%s&K; &cНе показанно &B%s&c строк&K ]&G---&g-&G--&g--&K-&g-&K----
+    tailxchasm    &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s&K; &cНе показанно &B%s&c строк&K ]&G---&g-&G--&g--&K-&g-&K----
     to.private &cЦитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c будет отправлена к Вам в приват.
     anon.big &cНовая цитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c, посмотреть ее можно по адресу &B&Uhttp://bash.org.ru/quote.php?num=%s&U&c .
     err.badtime Неверно задан интервал времени. Формат - ЧЧ1:ММ1-ЧЧ2:ММ2.
@@ -93,14 +92,14 @@ proc ::bashorgru::run { sid } {
       session set QuoteChasm [expr { [string index [lindex $StdArgs 0] end] eq "+" }]
       if { $QuoteChasm } {
         session set SearchPhrase $QuoteNum
-        http run "http://bash.org.ru/abyss.php" -return -query [list "text" $SearchPhrase] -query-codepage cp1251
+        http run "http://bash.org.ru/abyss" -return -query [list "text" $SearchPhrase] -query-codepage cp1251
       }
       if { $QuoteNum eq "" || [regexp {^[nN№]?\s*(\d+)$} $QuoteNum - QuoteNum] } {
 	session set QuoteNum [string trimleft $QuoteNum "0"]
 	if { $QuoteNum eq "" } {
-	  http run "http://bash.org.ru/quote.php" -return
+	  http run "http://bash.org.ru/random" -return
 	} {
-	  http run "http://bash.org.ru/quote.php?num=$QuoteNum" -return
+	  http run "http://bash.org.ru/quote/$QuoteNum" -return
 	}
       } {
 	if { ![regexp {^-?(\d*)\s*(.+)$} $QuoteNum - SearchNum SearchPhrase] } { replydoc "bash.search" }
@@ -114,7 +113,7 @@ proc ::bashorgru::run { sid } {
 	  if { $SearchPhrase eq "" } {
 	    http run "http://bash.org.ru/" -return
 	  } {
-	    http run "http://bash.org.ru/searchresults.php" -query [list "text" $SearchPhrase] -return -query-codepage cp1251
+	    http run "http://bash.org.ru/search" -query [list "text" $SearchPhrase] -return -query-codepage cp1251
 	  }
 	}
       }
@@ -127,8 +126,8 @@ proc ::bashorgru::run { sid } {
     }
     set HttpData [parse $HttpData]
     if { [info exists SearchPhrase] } {
-      if { !$QuoteChasm } { cache put $HttpData }
       if { ![llength [set SearchResult $HttpData]] } { reply -err nofound $SearchPhrase }
+      if { !$QuoteChasm } { cache put $HttpData }
     } {
       if { ![llength $HttpData] } {
 	debug -err "Error while parse page."
@@ -170,6 +169,7 @@ proc ::bashorgru::run { sid } {
     lassign [set SearchResult [lindex $SearchResult [expr { $SearchNum - 1 }]]] \
       QuoteNum QuoteData QuoteRate QuoteDate
   }
+  regsub -all -nocase {<br />} $QuoteData {<br>} QuoteData
   # если первым указан канал
   if { [regexp {^\s*(#\S+)<br>(.*)$} $QuoteData - cadd QuoteData] } {
     set cadd [cformat chanadd $cadd]
@@ -236,20 +236,20 @@ proc ::bashorgru::run { sid } {
     if { [expr rand()] < 0.5 } { set frm "1" } { set frm "2" }
     reply -noperson "prequote$frm" $_
     if { [incr linenum] >= [config get num.max] && [set_ [expr { [llength $QuoteData] } - $linenum]] } {
-      if { [info exists QuoteChasm] && $QuoteChasm } { reply -noperson -return tailxchasm $QuoteRate $_ }
+      if { [info exists QuoteChasm] && $QuoteChasm } { reply -noperson -return tailxchasm $QuoteRate $QuoteDate $_ }
       reply -noperson -return tailx $QuoteRate $QuoteDate $_ \
 	"http://bash.org.ru/quote.php?num=$QuoteNum"
     }
   }
-  reply -noperson tail[expr { [info exists QuoteChasm] && $QuoteChasm ? {.chasm} : {} }] $QuoteRate $QuoteDate
+  reply -noperson tail $QuoteRate $QuoteDate
 }
 proc ::bashorgru::parse { HttpData } {
   set_ [list]
-  while { [regexp {<tr>\s*<td>\s*(?:<a [^>]+>\s*)?(\d+)[\s<](.+?)class="dat">[\s\r\n]*(.+)$} $HttpData - a1 x1 a2] } {
-    if { ![regexp {\+</a>\s+([0-9-]+)\s+<a href=} $x1 - a3] } { set a3 "?" }
-    if { ![regexp -- {</a>[^,<>]+?, ([^<]+?)\s*</td>} $x1 - a4] } { set a4 "?" }
-    regexp {^(.+?)\s*</td>\s*(.+)$} $a2 - a2 HttpData
-    lappend_ [list $a1 $a2 $a3 $a4]
+  while { [regexp {<div class="q">\s*<div class="vote">\s*(.*?)</div>\s*<div>(.*?)</div>\s*(.*)$} $HttpData - 1 a2 HttpData] } {
+    if { [string first {</form>} $a2] != -1 } continue
+    if { ![regexp {^(?:<a href=./quote/[^>]+>)?(\d+)} $1 - a1] } set\ a1\ ?
+    if { ![regexp {<span>(-?\d+)</span>.*?\s+(\S+ \S+)\s*$} $1 - a3 a4] } { set a3 [set a4 ?] }
+    lappend_ [list $a1 $a2 $a3 [set a4 [string trim $a4]]]
     debug -debug "qnum: %s" $a1
     debug -debug "qtxt: %s" $a2
     debug -debug "qscr: %s" $a3
