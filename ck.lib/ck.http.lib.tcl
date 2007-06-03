@@ -36,6 +36,7 @@ proc ::ck::http::run { HttpUrl args } {
     -query dlist [list] \
     -query-codepage str "utf-8" \
     -cookie dlist [list] \
+    -cookpack dlist [list] \
     -norecode flag \
     -charset str "cp1251" \
     -forcecharset flag \
@@ -70,6 +71,7 @@ proc ::ck::http::run { HttpUrl args } {
 #  set HttpProxyHost  ""
 #  set HttpProxyPort  ""
   set HttpCookie     $(cookie)
+  set HttpCookPack   $(cookpack)
   set HttpHeads      $(heads)
   set HttpRequest    $(req)
 #  set HttpQuery      $(query)
@@ -142,21 +144,26 @@ proc ::ck::http::connected { sid } {
   }
 
   session insert HttpIntStatus 3
-  session import -exact HttpUrlParse HttpUserAgent HttpCookie HttpHeads HttpRequest HttpQuery
+  session import -exact HttpUrlParse HttpUserAgent HttpCookie HttpHeads HttpRequest HttpQuery HttpCookPack
 
   set Head [list "Accept" "*/*" "Host" [lindex $HttpUrlParse 1] \
     "User-Agent" $HttpUserAgent "Connection" "close"]
 #  set Head [list "Accept" "*/*" \
 #    "User-Agent" $HttpUserAgent "Connection" "close"]
+  array set {} $HttpCookPack
   if { [llength $HttpCookie] } {
-    set_ [list]
     foreachkv $HttpCookie {
-      lappend_ [join [string urlencode $k] [string urlencode $v] =]
+      set ([string urlencode $k]) [list [string urlencode $v]]
     }
-    join_ {; }
-    append_ {;}
-    lappend Head "Cookie" $_
   }
+  if { [array size {}] } {
+    set_ [list]
+    foreacharray {} {
+      lappend_ [join [list $k [lindex $v 0]] =]
+    }
+    lappend Head "Cookie" [join_ {; }]
+  }
+  unset {}
 
 #  set _ [list "[lindex {GET POST HEAD} $HttpRequest] http://[join $HttpUrlParse {}] HTTP/1.0"]
   set _ [list "[lindex {GET POST HEAD} $HttpRequest] [lindex $HttpUrlParse 3] HTTP/1.0"]
@@ -196,7 +203,7 @@ proc ::ck::http::parse_headers { sid heads } {
   set HttpMetaLength   ""
 #  set HttpMetaCode     ""
   set HttpMetaLocation ""
-  set HttpMetaCookie   ""
+  set HttpMetaCookie   [list]
   set HttpMeta         [list]
 
   session insert HttpStatus -104 HttpError "Error while parse headers."
@@ -226,6 +233,9 @@ proc ::ck::http::parse_headers { sid heads } {
 	set HttpMetaLocation $v
       }
       "Set-Cookie" {
+        set v [split $v {;}]
+        set_ [split [lindex $v 0] =]
+        lappend HttpMetaCookie [list [lindex_ 0] [join [lrange $_ 1 end] =]]
       }
       "Content-Length" {
 	if { ![string isnum -int -unsig -- $v] } {
@@ -235,6 +245,15 @@ proc ::ck::http::parse_headers { sid heads } {
 	set HttpMetaLength $v
       }
     }
+  }
+  if { [llength $HttpMetaCookie] } {
+    session import -exact HttpCookPack
+    array set {} $HttpCookPack
+    foreach_ $HttpMetaCookie {
+      set ([lindex_ 0]) [list [lindex_ 1]]
+    }
+    set HttpCookPack [array get {}]
+    unset {}
   }
   session export -grab Http*
   debug -debug " HttpMetaType    : %s" $HttpMetaType
@@ -277,7 +296,7 @@ proc ::ck::http::parse_headers { sid heads } {
     debug -debug "Configure socket for rcvd binary data."
     fconfigure $HttpSocket -encoding binary -translation binary
   } {
-    if { [regexp -nocase {^windows-(\d+)$} $enc - _] } { set enc "cp$_" }
+    if { [regexp -nocase {^win(?:dows)?-(\d+)$} $enc - _] } { set enc "cp$_" }
     debug -debug "Configure socket for rcvd text data with charset: %s" $enc
     if { [catch {fconfigure $HttpSocket -encoding [string tolower $enc] -translation auto}] } {
       debug -warn "Encoding is unknown, fall-back to binary..."
