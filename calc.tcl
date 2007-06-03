@@ -45,8 +45,8 @@ proc ::calc::init {} {
 proc ::calc::run { sid } {
   session import
   regsub -all -- {[{}\[\]\$\\"']} [join [lrange $StdArgs 1 end] " "] "" ex
-  if { [regexp -nocase {^ip\s+(.+)$} $ex - ex] } {
-    if { ![regexp {^(\d+\.\d+\.\d+\.\d+)/(\d+)$} $ex - ip mask] } {
+  if { [regexp -nocase {^ip(?:\s+(.+))?$} $ex - ex] } {
+    if { ![info exists ex] || ![regexp {^(\d+\.\d+\.\d+\.\d+)/(\d+)$} $ex - ip mask] } {
       replydoc calc.ip
     }
     foreach_ [split $ip .] { if { $_ > 255 } { reply -err bad.ip } }
