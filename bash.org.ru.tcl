@@ -73,10 +73,10 @@ proc ::bashorgru::init {} {
     prequote1     &g|&n %s
     prequote2     &G|&n %s
     tail          &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s &K]&G---&g-&G--&g--&K-&g-&K----
-    tailx         &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s&K; &cОстальные &B%s&c строк можно прочитать на &B&U%s&U&K ]&G---&g-&G--&g--&K-&g-&K----
+    tailx         &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s&K; &cОстальные &B%s&c строк можно прочитать на &B&Uhttp://bash.org.ru/quote/%s&U&K ]&G---&g-&G--&g--&K-&g-&K----
     tailxchasm    &g`-&G-&K[&n Рейтинг: &r%s&K;&n Дата: &r%s&K; &cНе показанно &B%s&c строк&K ]&G---&g-&G--&g--&K-&g-&K----
     to.private &cЦитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c будет отправлена к Вам в приват.
-    anon.big &cНовая цитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c, посмотреть ее можно по адресу &B&Uhttp://bash.org.ru/quote.php?num=%s&U&c .
+    anon.big &cНовая цитата &BN&R%s&c слишком большая &K(&B%s&c строк&K)&c, посмотреть ее можно по адресу &B&Uhttp://bash.org.ru/quote/%s&U&c .
     err.badtime Неверно задан интервал времени. Формат - ЧЧ1:ММ1-ЧЧ2:ММ2.
   }
 
@@ -271,8 +271,7 @@ proc ::bashorgru::run { sid } {
     reply -noperson "prequote$frm" $_
     if { [incr linenum] >= [config get num.max] && [set_ [expr { [llength $QuoteData] } - $linenum]] } {
       if { [info exists QuoteChasm] && $QuoteChasm } { reply -noperson -return tailxchasm $QuoteRate $QuoteDate $_ }
-      reply -noperson -return tailx $QuoteRate $QuoteDate $_ \
-	"http://bash.org.ru/quote.php?num=$QuoteNum"
+      reply -noperson -return tailx $QuoteRate $QuoteDate $_ $QuoteNum
     }
   }
   reply -noperson tail $QuoteRate $QuoteDate
