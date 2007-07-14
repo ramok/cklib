@@ -108,7 +108,7 @@ proc ::translate::run { sid } {
     if { $HttpStatus < 0 } {
       reply -err conn
     }
-    if { ![regexp {<span id="r_text" name="r_text">\s*(.*?)\s*</span>} $HttpData - TransText] } {
+    if { ![regexp {<div id="r_text" name="r_text">\s*([^>]+)\s*</div>} $HttpData - TransText] } {
       reply -err parse
     }
     cache put $TransText
@@ -125,7 +125,8 @@ proc ::translate::run { sid } {
 
 namespace eval translate {
   variable dictionary
-  array init dictionary {
+  catch { unset dictionary }
+  array set dictionary {
     er {
       {Англо-Русский}
 	{Software}   {Программное обеспечение}
