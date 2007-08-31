@@ -38,7 +38,7 @@ encoding system utf-8
 #     -bin - uses 1000 == 1k
 
 namespace eval ::ck::strings {
-  variable version 0.6
+  variable version 0.7
   variable author "Chpock <chpock@gmail.com>"
 
   variable const
@@ -309,8 +309,8 @@ proc ::ck::strings::parse_html { args } {
   set string [lindex $args 0]
   regsub -all {<!--.*?-->} $string {} string
   array set specs [list "quot" "'" "gt" ">" "lt" "<" "copy" "(c)" "amp" "&" "nbsp" " "]
-  while { [regexp -indices -nocase {([^<]*?)(&(?:[a-z]{2,7});|</?[^>]+>)} $string - pre aft] } {
-#    debug -debug "next! pre:%s: aft:%s:" [string range $string [lindex $pre 0] [lindex $pre 1]] [string range $string [lindex $aft 0] [lindex $aft 1]]
+  while { [regexp -indices -nocase {([^<]*?)(&(?:[a-z]{2,7}|#\d{1,4});|</?[^>]+>)} $string - pre aft] } {
+    debug -debug "next! pre:%s: aft:%s:" [string range $string [lindex $pre 0] [lindex $pre 1]] [string range $string [lindex $aft 0] [lindex $aft 1]]
     if { [lindex $pre 1] != -1 } {
       if { $(text) ne "" } {
 	uplevel 1 [list set _text [string range $string [lindex $pre 0] [lindex $pre 1]]]
@@ -322,7 +322,9 @@ proc ::ck::strings::parse_html { args } {
     set spec [string range $string [lindex $aft 0] [lindex $aft 1]]
     if { [string index $spec 0] eq {&} } {
       set spec [string tolower [string range $spec 1 end-1]]
-      if { [info exists specs($spec)] } {
+      if { [string index $spec 0] eq "#" } {
+        set spec_r [format %c [string range $spec 1 end]]
+      } elseif { [info exists specs($spec)] } {
 	set spec_r $specs($spec)
       } {
 	set spec_r ""
