@@ -5,7 +5,7 @@ encoding system utf-8
 ::ck::require cache 0.2
 
 namespace eval ::google {
-  variable version 1.0
+  variable version 1.1
   variable author "Chpock <chpock@gmail.com>"
   variable lastreq
 
@@ -82,7 +82,8 @@ proc ::google::run { sid } {
     if { ![cache get ParsedData] } {
       session export -grab Query*
       http run "http://www.google.ru/search" -return -charset utf-8 \
-        -query [list "q" $QueryText "client" "opera" "rls" "ru" "sourceid" "opera" "ie" "utf-8" \
+        -useragent {Mozilla/4.75 (X11; U; Linux 2.2.17; i586; Nav)} \
+        -query [list "q" $QueryText "rls" "ru" "ie" "utf-8" \
 	  "oe" "utf-8" start $QueryNumX "filter" [config get filter]]
     }
   } elseif { $Event eq "HttpResponse" } {
