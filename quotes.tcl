@@ -154,16 +154,15 @@ proc ::quotes::delquote { sid } {
       } elseif { [llength $matchlist] > 1 } {
 	reply -err manymatch [llength $matchlist]
       }
-      set mmi [expr { [lindex $matchlist 0] - 1 }]
     }
 #  }
 
-  set q [lindex $quote $mmi]
+  set q [lindex $quote $matchlist]
 
   # тут проветка на доступ к удалению
 
-  set quote [lreplace $quote $mmi $mmi]
+  set quote [lreplace $quote $matchlist $matchlist]
 
-  reply del.done [expr { $mmi + 1 }] [lindex $q 0]
+  reply del.done [expr { $matchlist + 1 }] [lindex $q 0]
   datafile putlist quotes $quote
 }
