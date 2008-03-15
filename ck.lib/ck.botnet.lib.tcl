@@ -3,7 +3,7 @@
 ::ck::require config 0.2
 
 namespace eval ::ck::botnet {
-  variable version 0.3
+  variable version 0.4
   variable author "Chpock <chpock@gmail.com>"
 
   variable res_buf
@@ -297,7 +297,7 @@ proc ::_putbot { tobot txt } {
     foreach_ [binds] {
       if { [lindex $_ 0] != "bot" || [lindex $_ 2] != $cmd } { continue }
       set prc [lindex $_ 4]
-      ::ck::debug -info ":botnet: transfer message cmd\(%s\) to local proc <%s>..." $cmd $prc
+#      ::ck::debug -info ":botnet: transfer message cmd\(%s\) to local proc <%s>..." $cmd $prc
       if { [catch [list $prc $tobot $cmd $txt] errStr] } {
 	::ck::debug -err ":botnet: Error transfer message cmd\(%s\) to local proc <%s>: %s" $cmd $prc $errStr
 	foreach_ [split $::errorInfo "\n"] {
