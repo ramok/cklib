@@ -97,14 +97,13 @@ proc ::botnetstat::update { {sid ""} } {
   }
   set d [list {<?}]
   foreacharray childs {
-    set k [escape $k]
     set x [list]
     foreach_ $v { lappend x [escape $_] }
     set x [join $x {', '}]
-    lappend d "\$b\['${k}'\] = array\( 0 => '${x}'\);"
+    lappend d "\$b\['[escape $k]'\] = array\( 0 => '${x}'\);"
     set_ $info($k)
     set_ "'_status' => '[lindex_ 0]', '_version' => '[escape [lindex_ 1]]'"
-    lappend d "\$n\['${k}'\] = array\(${_}\);"
+    lappend d "\$n\['[escape $k]'\] = array\(${_}\);"
   }
   lappend d "\$defbot = '![escape ${::botnet-nick}]';"
   lappend d {?>}
