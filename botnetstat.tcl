@@ -76,7 +76,8 @@ proc ::botnetstat::update { {sid ""} } {
   set info(!${::botnet-nick}) [list "on" [parseversion $::numversion]]
   debug -debug "Mark other knowns bot as offline..."
   foreachkv [cache getindex] {
-    if { $k == "!-local" || ![cache get -uid $k xdata] } continue
+    if { [lindex $k 0] == "!-local" || ![cache get -uid $k xdata] } continue
+    set k [lindex $k 0]
     array set {} $xdata
     if { ![info exists online($k)] } {
       set (_status) "off"
@@ -191,6 +192,7 @@ proc ::botnetstat::rebuild { sid } {
   foreachkv [cache getindex] {
     if { ![cache get -uid $k xdata] } continue
     array set {} $xdata
+    set k [lindex $k 0]
     if { $k eq "!-local" } { set k "!${::botnet-nick}" }
     set b [escape $k]
     set_ [list]
