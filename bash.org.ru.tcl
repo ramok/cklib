@@ -5,7 +5,7 @@ encoding system utf-8
 ::ck::require cache 0.2
 
 namespace eval ::bashorgru {
-  variable version 1.1
+  variable version 1.2
   variable author  "Chpock <chpock@gmail.com>"
   variable annonuce
   variable lastQuote
@@ -281,7 +281,7 @@ proc ::bashorgru::parse { HttpData } {
   while { [regexp {<div class="q">\s*<div class="vote">\s*(.*?)</div>\s*<div>(.*?)</div>\s*(.*)$} $HttpData - 1 a2 HttpData] } {
     if { [string first {</form>} $a2] != -1 } continue
     if { ![regexp {^(?:<a href=./quote/[^>]+>)?(\d+)} $1 - a1] } set\ a1\ ?
-    if { ![regexp {<span>(-?\d+)</span>.*?\s+(\S+ \S+)\s*$} $1 - a3 a4] } { set a3 [set a4 ?] }
+    if { ![regexp {<span.*?>(.*?)</span>.*?\s+(\S+ \S+ \S+)\s*$} $1 - a3 a4] } { set a3 [set a4 ?] }
     lappend_ [list $a1 $a2 $a3 [set a4 [string trim $a4]]]
     debug -debug "qnum: %s" $a1
     debug -debug "qtxt: %s" $a2
