@@ -3,7 +3,7 @@
 ::ck::require sessions 0.3
 
 namespace eval ::ck::http {
-  variable version 0.2
+  variable version 0.3
   variable author  "Chpock <chpock@gmail.com>"
 
   namespace import -force ::ck::*
@@ -144,7 +144,7 @@ proc ::ck::http::connected { sid } {
   }
 
   session insert HttpIntStatus 3
-  session import -exact HttpUrlParse HttpUserAgent HttpCookie HttpHeads HttpRequest HttpQuery HttpCookPack
+  session import -exact HttpUrlParse HttpUserAgent HttpCookie HttpHeads HttpRequest HttpQuery HttpCookPack HttpProxyPort HttpProxyHost HttpUrl
 
   set Head [list "Accept" "*/*" "Host" [lindex $HttpUrlParse 1] \
     "User-Agent" $HttpUserAgent "Connection" "close"]
@@ -166,7 +166,7 @@ proc ::ck::http::connected { sid } {
   unset {}
 
 #  set _ [list "[lindex {GET POST HEAD} $HttpRequest] http://[join $HttpUrlParse {}] HTTP/1.0"]
-  set _ [list "[lindex {GET POST HEAD} $HttpRequest] [lindex $HttpUrlParse 3] HTTP/1.0"]
+  set _ [list "[lindex {GET POST HEAD} $HttpRequest] [expr {$HttpProxyHost ne "" && $HttpProxyPort ne ""?$HttpUrl:[lindex $HttpUrlParse 3]}] HTTP/1.0"]
   if { $HttpRequest == 1 } {
     lappend_ [join [list "Content-Type" "application/x-www-form-urlencoded"] ": "] \
       [join [list "Content-Length" [string length $HttpQuery]] ": "]
