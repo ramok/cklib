@@ -115,18 +115,18 @@ proc ::google::run { sid } {
 }
 proc ::google::parse { data } {
   regfilter {^.*?</form>} data
-  if { ![regexp {<td align=right nowrap><font size=-1>.*?<b>(\d+)</b>.*?<b>(\d+)</b>.*?<b>(.*?)</b>} $data - snum mnum onum] } {
+  if { ![regexp {<td nowrap align[^>]+?><font[^>]+?>.*?<b>(\d+)</b>.*?<b>(\d+)</b>.*?<b>(.*?)</b>} $data - snum mnum onum] } {
     set mnum [set snum [set onum 0]]
   } {
     regfilter -all {[^0-9,]} onum
   }
-  if { ![regexp {<p><font color=#cc0000 class=p>[^<]+?</font><a[^>]+?>(.+?)</a>} $data - mb] } {
+  if { ![regexp {<br><font color="#cc0000">[^<]+?</font>\s*<a[^>]+?>(.+?)</a>} $data - mb] } {
     set mb ""
   }
   set_ [list $snum $mnum $onum $mb]
-  while { [regexp {<div><a\s[^>]*?href="(.+?)"[^>]*>(.+)$} $data - a1 a2] } {
-    regexp {^(.+?)</a>(.+?)<span(.+)$} $a2 - a2 a3 data
-    regfilter {.*?<td\s[^>]+>} a3
+  while { [regexp {<p><a\s[^>]*?href="(.+?)"[^>]*?>(.+)$} $data - a1 a2] } {
+    regexp {^(.+?)</a>(.+?)<br><font(.+)$} $a2 - a2 a3 data
+    regfilter {.*?<font[^>]+>} a3
     lappend_ [list $a1 $a2 $a3]
   }
   return $_
