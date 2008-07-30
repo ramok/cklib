@@ -45,6 +45,7 @@ proc ::cyborg::run { sid } {
     if { [string length $TextR] } {
       http run "http://www.korova.ru/humor/cyborg.php" -query [list "acronym" $TextR] -query-codepage koi8-r -mark "Rus" -return
     } {
+      set TextE [string range $TextE 0 9]
       http run "http://cyborg.namedecoder.com/index.php" -query [list "acronym" $TextE "design" "edox"] \
 	-mark "Eng" -return
     }
