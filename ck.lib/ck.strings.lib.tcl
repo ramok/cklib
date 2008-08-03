@@ -38,7 +38,7 @@ encoding system utf-8
 #     -bin - uses 1000 == 1k
 
 namespace eval ::ck::strings {
-  variable version 0.7
+  variable version 0.8
   variable author "Chpock <chpock@gmail.com>"
 
   variable const
@@ -278,7 +278,7 @@ proc ::ck::strings::untag {str} {
 proc ::ck::strings::unspec {str} {
   set ret ""
   while { [regexp {^(.*?)&#(\d{1,4});(.*)$} $str - p e str] } {
-    append ret $p [format %c $e]
+    append ret $p [format %c [string trimleft $e 0]]
   }
   set str [append ret $str]
   regsub -all -nocase -- {&quot;} $str {'}   str
