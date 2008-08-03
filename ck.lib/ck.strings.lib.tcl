@@ -323,7 +323,7 @@ proc ::ck::strings::parse_html { args } {
     if { [string index $spec 0] eq {&} } {
       set spec [string tolower [string range $spec 1 end-1]]
       if { [string index $spec 0] eq "#" } {
-        set spec_r [format %c [string range $spec 1 end]]
+        set spec_r [format %c [string trimleft [string range $spec 1 end] 0]]
       } elseif { [info exists specs($spec)] } {
 	set spec_r $specs($spec)
       } {
