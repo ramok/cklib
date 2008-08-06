@@ -115,6 +115,7 @@ proc ::google::run { sid } {
 }
 proc ::google::parse { data } {
   regfilter {^.*?</form>} data
+  set data [html unspec $data]
   if { ![regexp {<td nowrap align[^>]+?><font[^>]+?>.*?<b>(\d+)</b>.*?<b>(\d+)</b>.*?<b>(.*?)</b>} $data - snum mnum onum] } {
     set mnum [set snum [set onum 0]]
   } {
