@@ -144,7 +144,7 @@ proc ::bashorgru::run { sid } {
 	  if { $SearchPhrase eq "" } {
 	    http run "http://bash.org.ru/" -return
 	  } {
-	    http run "http://bash.org.ru/search" -query [list "text" $SearchPhrase] -return -query-codepage cp1251
+	    http run "http://bash.org.ru/" -query [list "text" $SearchPhrase] -return -query-codepage cp1251
 	  }
 	}
       }
