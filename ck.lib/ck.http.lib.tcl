@@ -3,7 +3,7 @@
 ::ck::require sessions 0.3
 
 namespace eval ::ck::http {
-  variable version 0.3
+  variable version 0.4
   variable author  "Chpock <chpock@gmail.com>"
 
   namespace import -force ::ck::*
@@ -103,6 +103,10 @@ proc ::ck::http::make_request { sid } {
     if { $HttpQuery ne "" } {
       append path "?" $HttpQuery
     }
+  }
+  if { $HttpQuery ne "" } {
+    append HttpUrl "?" $HttpQuery
+    session export -grab HttpUrl
   }
 
   session insert HttpUrlParse [list $user $host $port $path]
