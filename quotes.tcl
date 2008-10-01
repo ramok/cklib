@@ -97,7 +97,7 @@ proc ::quotes::addquote { sid } {
   session import
 
   session set CmdAccess [config get addflags]
-  checkaccess -return
+  if {[regexp -nocase {[a-z]} [config get addflags]]} { checkaccess -return }
 
   regexp {^\S+\s+(.+)$} $Text - q
   regsub {\W} $q {} hash
@@ -125,41 +125,39 @@ proc ::quotes::delquote { sid } {
   variable quote
   session import
 
+  session set CmdAccess [config get remflags]
+  if {[regexp -nocase {[a-z]} [config get remflags]]} { checkaccess -return }
+
   if { [llength $quote] == 0 } {
     reply -err noquote
   }
 
   set mask [join [lrange $StdArgs 1 end] " "]
 
-#  if { $mask == "" } {
-#    set mmi [llength $quote]
-#    incr mmi -1
-#  } {
-    if { [string isnum -int -unsig $mask] } {
-      if { $mask > [llength $quote] || $mask < 1 } {
-	reply -err badnum $mask
-      }
-      set mmi [incr mask -1]
-    } {
-      set matchlist [list]
-      set i 0
-      foreach_ $quote {
-        if { [string match -nocase "*${mask}*" [lindex $_ 0]] } {
-	  lappend matchlist $i
-	}
-	incr i
-      }
-      if { ![llength $matchlist] } {
-	reply -err nomatch
-      } elseif { [llength $matchlist] > 1 } {
-	reply -err manymatch [llength $matchlist]
-      }
+  if { [string isnum -int -unsig $mask] } {
+    if { $mask > [llength $quote] || $mask < 1 } {
+      reply -err badnum $mask
     }
-#  }
+    set matchlist [incr mask -1]
+  } {
+    set matchlist [list]
+    set i 0
+    foreach_ $quote {
+      if { [string match -nocase "*${mask}*" [lindex $_ 0]] } {
+        lappend matchlist $i
+      }
+      incr i
+    }
+    if { ![llength $matchlist] } {
+      reply -err nomatch
+    } elseif { [llength $matchlist] > 1 } {
+      reply -err manymatch [llength $matchlist]
+    }
+  }
 
   set q [lindex $quote $matchlist]
 
-  # тут проветка на доступ к удалению
+  # тут проверка на доступ к удалению ??
 
   set quote [lreplace $quote $matchlist $matchlist]
 
