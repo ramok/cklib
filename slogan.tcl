@@ -31,7 +31,7 @@ proc ::slogan::run { sid } {
   session import
   if { $Event eq "CmdPass" } {
     set Text [join [lrange $StdArgs 1 end] { }]
-    http run "http://slogan.anub.ru/server.php" -query [list "slogan" $Text] -query-codepage cp1251 -return
+    http run "http://slogen.ru/server.php" -query [list "slogan" $Text] -query-codepage cp1251 -return
   }
 
   if { $HttpStatus < 0 } { reply -err conn }
