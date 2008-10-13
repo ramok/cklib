@@ -10,7 +10,7 @@
 ::ck::require strings  0.6
 
 namespace eval ::ck::cmd {
-  variable version 0.7
+  variable version 0.8
   variable author  "Chpock <chpock@gmail.com>"
 
   variable MAGIC "\000:\000"
@@ -54,6 +54,9 @@ proc ::ck::cmd::init {} {
     -desc "Allow public cmds without prefix." -access "m" -folder "mod.cmd" -hook ::ck::cmd::cfg_resetbinds
   config register -id "pub.multitarget" -type bool -default 0 \
     -desc "Allow multitarget public msgs." -folder "mod.cmd"
+  config register -id "stripcolor" -type list -default [list] \
+    -desc "Remove colors-codes from command replys. Format: \[<channel>|msg|dcc\] <color> <bold> <underline> <reverse> <all>" -access "m" \
+    -folder "mod.cmd" -hook ::ck::cmd::cfg_stripcolor
 
   catch { unset doc_handler }
   array init cmds
@@ -262,8 +265,9 @@ proc ::ck::cmd::register {id bindprc args} {
   set cmds($id) [array get tcmd]
 #  set cmds_flood($id) $tcmd(flood)
 
-  config register -id "nocolors" -type bool -default 0  \
-    -desc "Remove colors from command $id replys." -access "m" -folder $tcmd(config) -ns $tcmd(namespace)
+  config register -id "stripcolor" -type list -default [list] \
+    -desc "Remove colors-codes from command $id replys. Format: \[<channel>|msg|dcc\] <color> <bold> <underline> <reverse> <all>" -access "m" \
+    -folder $tcmd(config) -ns $tcmd(namespace) -hook ::ck::cmd::cfg_stripcolor
 
   config register -id "chanallow" -type list -default "*" \
     -desc "List of channels were command $id is allowed." -access "m" -folder $tcmd(config) -ns $tcmd(namespace) \
@@ -579,6 +583,32 @@ proc ::ck::cmd::makepfix { cmd targlist } {
   set pfix [format "%s %s :" $cmd [join $targlist ,]]
   return [list $pfix [min $maxret [expr { $max - [string length $pfix] }]]]
 }
+proc ::ck::cmd::colorstrip { cmdconf txt targtype {targ ""} } {
+  upvar sid sid
+  foreach cfgpfix [list ".${cmdconf}." ""] {
+    array set striparr [stripcolor2array [::ck::config::config get "${cfgpfix}stripcolor"]]
+    if { $targtype eq "pub" && [info exists striparr($targ)] } {
+      set stripit $striparr($targ)
+    } elseif { $targtype ne "pub" && [info exists striparr($targtype)] } {
+      set stripit $striparr($targtype)
+    } elseif { [info exists striparr()] } {
+      set stripit $striparr()
+    }
+    if { [info exists stripit] } break
+  }
+  if { ![info exists stripit] } { return $txt }
+
+  foreach_ $stripit {
+    switch -glob -- $_ {
+      u* { set txt [string stripcolor -und $txt]  }
+      b* { set txt [string stripcolor -bol $txt] }
+      r* { set txt [string stripcolor -rev $txt] }
+      c* { set txt [string stripcolor -col $txt] }
+      a* { set txt [string stripcolor $txt] }
+    }
+  }
+  return $txt
+}
 proc ::ck::cmd::reply { args } {
   upvar sid sid
   session import CmdReplyParam*
@@ -628,7 +658,7 @@ proc ::ck::cmd::reply { args } {
   if { $mode eq "" } { debug -warn "Unknown put mode for cmd <%s>." $CmdId; set mode "serv" }
   switch -- $CmdEvent {
     "msg" {
-      set txt [::ck::colors::cformat -optcol $txt]
+      set txt [colorstrip $CmdConfig [::ck::colors::cformat -optcol $txt] msg]
       lassign [makepfix "PRIVMSG" [list $Nick]] pre width
       if { $(multi) } {
 	foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
@@ -642,6 +672,7 @@ proc ::ck::cmd::reply { args } {
       set txt [::ck::colors::cformat -optcol $txt]
       if { $(private) || [::ck::config::config get ".${CmdConfig}.notice"] eq "1" } {
 	lassign [makepfix "NOTICE" [list $Nick]] pre width
+        set txt [colorstrip $CmdConfig $txt msg]
 	if { $(multi) } {
 	  foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
 	    put$mode "$pre$txt"
@@ -663,6 +694,7 @@ proc ::ck::cmd::reply { args } {
 	  }
 	} {
 	  lassign [makepfix "PRIVMSG" [list $Channel]] pre width
+          set txt [colorstrip $CmdConfig $txt pub $Channel]
 	  if { $(multi) } {
 	    foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
 	      put$mode "$pre$txt"
@@ -674,7 +706,7 @@ proc ::ck::cmd::reply { args } {
       }
     }
     "dcc" {
-      set txt [::ck::colors::cformat $txt]
+      set txt [colorstrip $CmdConfig [::ck::colors::cformat $txt] dcc]
       putidx [session set CmdDCC] $txt
     }
   }
@@ -843,6 +875,17 @@ proc ::ck::cmd::cmd_checkchan { cmdid chan } {
 #  debug "default - disable."
   return 0
 }
+proc ::ck::cmd::stripcolor2array { data } {
+  array set ret {}
+  set curdest ""
+  foreach_ $data {
+    switch -glob -- $_  {
+      msg - dcc - "#*" { set curdest $_ }
+      default { set ret($curdest) $_ }
+    }
+  }
+  return [array get ret]
+}
 
 #### Config Checks
 
@@ -851,9 +894,43 @@ proc ::ck::cmd::cfg_resetbinds { args } {
   array init ::ck::cmd::bindmask
   return
 }
-
 proc ::ck::cmd::cfg_msgmode { mode var oldv newv hand } {
   if { ![string equal -length 3 $mode "set"] || \
     [lexists "fast quick serv help" $newv] } return
   return [list 2 "MsgMode must be one of <fast>, <quick>, <serv> or <help>."]
+}
+proc ::ck::cmd::cfg_stripcolor { mode var oldv newv hand } {
+  if { ![string equal -length 3 $mode "set"] } return
+  if { $newv ne "" } {
+    switch -glob -- [lindex $newv 0] {
+      msg - dcc - "#*" { lnext newv dest }
+      default { set dest "" }
+    }
+    set newvparsed [list]
+    foreach_ $newv {
+      switch -glob -- $_ {
+        u* { lappend newvparsed "underline" }
+        r* { lappend newvparsed "reverse"   }
+        c* { lappend newvparsed "color"     }
+        b* { lappend newvparsed "bold"      }
+        a* { lappend newvparsed "all"       }
+        default {
+          return [list 2 "Unknown value \"$_\". Format: \[<channel>|msg|dcc\] <color> <bold> <underline> <reverse> <all>."]
+        }
+      }
+    }
+    if { [lexists [set newvparsed [luniq $newvparsed]] all] } { set newvparsed all }
+  } {
+    set dest ""
+    set newvparsed [list]
+  }
+  array set curarr [stripcolor2array $oldv]
+  set curarr($dest) $newvparsed
+  set newv [list]
+  foreach_ [lsort [array names curarr]] {
+    if { $curarr($_) eq "" } continue
+    if { $_ ne "" } { lappend newv $_ }
+    eval [concat [list lappend newv] $curarr($_)]
+  }
+  return [list 1 "" $newv]
 }
