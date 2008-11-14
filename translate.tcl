@@ -70,14 +70,14 @@ proc ::translate::run { sid } {
 
     if { ![cache get TransText] } {
       session export -grablist [list "dict"]
-      http run "http://wap.translate.ru/wap2/translator.aspx/result" -query-codepage utf-8 -return \
-        -query [list tbDirection $dict tbText $Text Submit 1]
+      http run "http://m.translate.ru/translator/result/" -query-codepage utf-8 -return \
+        -query [list text $Text dirCode $dict]
     }
   } elseif { $Event eq "HttpResponse" } {
     if { $HttpStatus < 0 } {
       reply -err conn
     }
-    if { ![regexp {<p class="result">.*?<p class="result">\s*(.+?)\s*</p>} $HttpData - TransText] } {
+    if { ![regexp {<div class="tres">\s*(.*?)\s*</div><div.*} $HttpData - TransText] } {
       reply -err parse
     }
     cache put $TransText
