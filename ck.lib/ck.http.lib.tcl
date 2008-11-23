@@ -286,13 +286,17 @@ proc ::ck::http::parse_headers { sid heads } {
   session insert HttpStatus 0 HttpError ""
   session import -exact HttpNoRecode HttpDefaultForceCP HttpDefaultCP HttpSocket
 
-  if { $HttpNoRecode || ![string match -nocase "text*" $HttpMetaType] } {
-    set enc "binary"
+  if { $HttpDefaultForceCP } {
+    set enc $HttpDefaultCP
   } {
-    if { $HttpDefaultForceCP || $HttpMetaCharset == "" } {
-      set enc $HttpDefaultCP
+    if { $HttpNoRecode || ![string match -nocase "text*" $HttpMetaType] } {
+      set enc "binary"
     } {
-      set enc $HttpMetaCharset
+      if { $HttpMetaCharset == "" } {
+        set enc $HttpDefaultCP
+      } {
+        set enc $HttpMetaCharset
+      }
     }
   }
 
