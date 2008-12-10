@@ -10,7 +10,7 @@
 ::ck::require strings  0.6
 
 namespace eval ::ck::cmd {
-  variable version 0.8
+  variable version 0.9
   variable author  "Chpock <chpock@gmail.com>"
 
   variable MAGIC "\000:\000"
@@ -130,7 +130,7 @@ proc ::ck::cmd::cmd {args} {
   cmdargs \
     register       ::ck::cmd::register \
     doc            ::ck::cmd::regdoc \
-    regfilter-pub  ::ck::cmd::regfilter-pub \
+    regfilter      ::ck::cmd::regfilter \
     regdoc_handler ::ck::cmd::regdoc_handler \
     unregister     ::ck::cmd::unregister \
     invoke         ::ck::cmd::invoke_cmd
@@ -165,13 +165,18 @@ proc ::ck::cmd::regdoc { args } {
   set cmddoc($id) $_
   foreach_ $(alias) { set cmddoc($_) [list $_ $_ $id $(author) $(link)] }
 }
-proc ::ck::cmd::regfilter-pub { fid fproc } {
+proc ::ck::cmd::regfilter { fid fproc args } {
   variable filters
   variable bindmask
 
-  set tflt(type) "pub"
-  set tflt(proc) $fproc
-  set tflt(id)   $fid
+  getargs \
+    -cmd str "" \
+    -event choice [list -all -msg -dcc -pub]
+
+  set tflt(proc)  $fproc
+  set tflt(id)    $fid
+  set tflt(acmd)  $(cmd)
+  set tflt(event) [lindex {all msg dcc pub} $(event)]
 
   set filters($fid) [array get tflt]
   array init bindmask
@@ -207,6 +212,7 @@ proc ::ck::cmd::register {id bindprc args} {
   set tcmd(access)      "-"
   set tcmd(auth)        "1"
   set tcmd(doc)         ""
+  set tcmd(nolog)       0
   set tcmd(pubbind) [list]
   set tcmd(msgbind) [list]
   set tcmd(dccbind) [list]
@@ -252,6 +258,7 @@ proc ::ck::cmd::register {id bindprc args} {
       -doc         { lpop args tcmd(doc)        }
       -force-regexp { set frc_regexp 1 }
       -force-prefix { set frc_pfix 1 }
+      -nolog        { set tcmd(nolog) 1 }
       default {
 	debug -warn "Unknown option: %s" $cmd
       }
@@ -285,14 +292,6 @@ proc ::ck::cmd::register {id bindprc args} {
     -desc "Send-reply mode. Can be <fast>, <quick>, <serv> or <help>." -access "m" -folder $tcmd(config) \
     -ns $tcmd(namespace) -hook ::ck::cmd::cfg_msgmode
 
-  if { $tcmd(pubmask) eq "" && $tcmd(pubbind) eq "" } {
-    config disable ".$tcmd(config).chanallow" ".$tcmd(config).chandeny" \
-      ".$tcmd(config).notice" ".$tcmd(config).pub.noprefix"
-    if { $tcmd(msgbind) eq "" && $tcmd(msgmask) eq "" } {
-      config disable ".$tcmd(config).msgmode"
-    }
-  }
-
   array init bindmask
 }
 
@@ -314,8 +313,17 @@ proc ::ck::cmd::updatebinds { type { target "" } } {
   set filtres [list]
 
   foreach {id larray} [array get filters] {
-    array set tflt $larray
-    if { $tflt(type) != $type } continue
+    array init tflt $larray
+    debug $larray
+    if { $tflt(event) != "all" && $tflt(event) != $type } continue
+    if { $tflt(acmd) ne "" } {
+      if { ![info exists cmds($tflt(acmd))] } { debug -debug "Filter ID(%s) is disabled due attached command not exists." $id; continue }
+      if { $type eq "pub" && ![cmd_checkchan $tflt(acmd) $target] } {
+        debug -debug "Filter ID(%s) is disabled on chan <%s> by attached command."
+        continue
+      }
+    }
+    debug -debug "Add filter <%s> for cmd <%s> on <%s@%s>" $id $tflt(acmd) $target $type
     lappend filtres $id $tflt(proc)
   }
 
@@ -401,23 +409,27 @@ proc ::ck::cmd::searchcmd { vart type { tg "" } } {
   if { [llength $match] == 0 } return
   return [lindex [lindex [lsort -integer -index 0 $match] end] 1]
 }
-proc ::ck::cmd::applyfilter { type {tg ""} } {
+proc ::ck::cmd::applyfilter { CmdEvent {Channel ""} } {
   variable bindmask
-  switch -- $type {
-    pub {
-      upvar t Text n Nick uh UserHost h Handle tg Channel
+  if { ![info exists bindmask([list "filt $CmdEvent $Channel"])] } { updatebinds $CmdEvent $Channel }
+  switch -- $CmdEvent {
+    msg - pub {
+      upvar t Text n Nick uh UserHost h Handle
+      set CmdDCC ""
+    }
+    dcc {
+      upvar t Text n Nick uh UserHost n Handle i CmdDCC
     }
   }
-  if { ![info exists bindmask([list "mask $type $tg"])] } { updatebinds $type $tg }
-  foreach {FilterId fproc} [set bindmask([list "filt $type $tg"])] {
-    debug -debug "Apply %s-filter\(%s\) <%s>..." $type $tg $FilterId
-    if { [catch [list $fproc $type] errStr] } {
-      debug -err "Error %s-filter\(%s\) with proc <%s>: %s" $type $tg $fproc $errStr
+  foreach {FilterId fproc} [set bindmask([list "filt $CmdEvent $Channel"])] {
+    debug -debug "Apply %s-filter\(%s\) <%s>..." $CmdEvent $Channel $FilterId
+    if { [catch [list $fproc] errStr] } {
+      debug -err "Error %s-filter\(%s\) with proc <%s>: %s" $CmdEvent $Channel $fproc $errStr
       foreach_ [split $::errorInfo "\n"] {
 	debug -err- "  $_"
       }
     }
-    debug -debug "Apply %s-filter\(%s\) <%s> finish." $type $tg $FilterId
+    debug -debug "Apply %s-filter\(%s\) <%s> finish." $CmdEvent $Channel $FilterId
     if { $Text == "" } {
       debug -debug "Filter nulled Text var. exiting."
       return 1
@@ -522,7 +534,7 @@ proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {
     catch { replydoc $tcmd(doc) }
     session destroy
   } else {
-    cmdlog
+    if { !$tcmd(nolog) } cmdlog
     session event CmdPass
   }
 }
@@ -530,9 +542,9 @@ proc ::ck::cmd::cmdlog { {status ""} } {
   foreach_ {Nick Channel CmdEvent StdArgs CmdId UserHost} { upvar $_ $_ }
   if { $status ne "" } { set status [format {(%s)} $status] }
   switch -- $CmdEvent {
-    "pub" { set m [format {pub(%s/%s) :%s%s: %s} $Channel $Nick $CmdId $status $StdArgs] }
-    "msg" { set m [format {msg(%s!%s) :%s%s: %s} $Nick $UserHost $CmdId $status $StdArgs] }
-    "dcc" { set m [format {dcc(%s) :%s%s: %s} $Nick $CmdId $status $StdArgs] }
+    "pub" { set m [format {pub(%s/%s) :%s%s: %s} $Channel $Nick $CmdId $status [join $StdArgs { }]] }
+    "msg" { set m [format {msg(%s!%s) :%s%s: %s} $Nick $UserHost $CmdId $status [join $StdArgs { }]] }
+    "dcc" { set m [format {dcc(%s) :%s%s: %s} $Nick $CmdId $status [join $StdArgs { }]] }
     default { return }
   }
   set rpl [list]
@@ -575,13 +587,16 @@ proc ::ck::cmd::replydoc { args } {
   reply "%s" [cmark [lindex $cmddoc([lindex $stoplist end]) 2]]
   return -code return
 }
-proc ::ck::cmd::makepfix { cmd targlist } {
+proc ::ck::cmd::makepfix { cmd isaction targlist } {
   set maxret [set max 510]
   foreach_ $targlist {
     set maxret [min $maxret [expr { $max - [string length [format ":%s %s %s :" $::botname $cmd $_]] }]]
   }
   set pfix [format "%s %s :" $cmd [join $targlist ,]]
-  return [list $pfix [min $maxret [expr { $max - [string length $pfix] }]]]
+  if { $isaction && $cmd eq "PRIVMSG" } {
+    append pfix "\001ACTION "; set postfix "\001"
+  } else { set postfix "" }
+  return [list $pfix [min $maxret [expr { $max - [string length $pfix] }]] $postfix]
 }
 proc ::ck::cmd::colorstrip { cmdconf txt targtype {targ ""} } {
   upvar sid sid
@@ -622,6 +637,7 @@ proc ::ck::cmd::reply { args } {
     -broadcast flag \
     -doc str "" \
     -uniq flag \
+    -action flag \
     -bcast-targ list [list] \
     -multi flag \
     -multi-max int 2 \
@@ -659,55 +675,55 @@ proc ::ck::cmd::reply { args } {
   switch -- $CmdEvent {
     "msg" {
       set txt [colorstrip $CmdConfig [::ck::colors::cformat -optcol $txt] msg]
-      lassign [makepfix "PRIVMSG" [list $Nick]] pre width
+      lassign [makepfix "PRIVMSG" $(action) [list $Nick]] pre width post
       if { $(multi) } {
 	foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
-	  put$mode "$pre$txt"
+	  put$mode "$pre$txt$post"
 	}
       } {
-        put$mode $pre[string range $txt 0 [incr width -1]]
+        put$mode $pre[string range $txt 0 [incr width -1]]$post
       }
     }
     "pub" {
       set txt [::ck::colors::cformat -optcol $txt]
       if { $(private) || [::ck::config::config get ".${CmdConfig}.notice"] eq "1" } {
-	lassign [makepfix "NOTICE" [list $Nick]] pre width
+	lassign [makepfix "NOTICE" $(action) [list $Nick]] pre width post
         set txt [colorstrip $CmdConfig $txt msg]
 	if { $(multi) } {
 	  foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
-	    put$mode "$pre$txt"
+	    put$mode "$pre$txt$post"
 	  }
 	} {
-	  put$mode $pre[string range $txt 0 [incr width -1]]
+	  put$mode $pre[string range $txt 0 [incr width -1]]$post
 	}
       } {
 	if { $(broadcast) } {
 	  if { ![llength $(bcast-targ)] } { set (bcast-targ) [cmdchans $CmdId] }
 	  if { [::ck::config::config get "pub.multitarget"] } {
-	    lassign [makepfix "PRIVMSG" $(bcast-targ)] pre width
-	    put$mode $pre[string range $txt 0 [incr width -1]]
+	    lassign [makepfix "PRIVMSG" $(action) $(bcast-targ)] pre width post
+	    put$mode $pre[string range $txt 0 [incr width -1]]$post
 	  } {
 	    foreach_ $(bcast-targ) {
-	      lassign [makepfix "PRIVMSG" [list $_]] pre width
-	      put$mode $pre[string range $txt 0 [incr width -1]]
+	      lassign [makepfix "PRIVMSG" $(action) [list $_]] pre width post
+	      put$mode $pre[string range $txt 0 [incr width -1]]$post
 	    }
 	  }
 	} {
-	  lassign [makepfix "PRIVMSG" [list $Channel]] pre width
+	  lassign [makepfix "PRIVMSG" $(action) [list $Channel]] pre width post
           set txt [colorstrip $CmdConfig $txt pub $Channel]
 	  if { $(multi) } {
 	    foreach txt [color splittext -line $(multi-only) -maxlines $(multi-max) -width $width $txt] {
-	      put$mode "$pre$txt"
+	      put$mode "$pre$txt$post"
 	    }
 	  } {
-	    put$mode $pre[string range $txt 0 [incr width -1]]
+	    put$mode $pre[string range $txt 0 [incr width -1]]$post
 	  }
 	}
       }
     }
     "dcc" {
       set txt [colorstrip $CmdConfig [::ck::colors::cformat $txt] dcc]
-      putidx [session set CmdDCC] $txt
+      putidx [session set CmdDCC] [expr { $(action)?"-${::nick}-> ":"" }]$txt
     }
   }
   if { $(return) || (!$(noreturn) && $(err)) } { return -code return } return
@@ -721,13 +737,12 @@ proc ::ck::cmd::pubm { n uh h tg t } {
 }
 proc ::ck::cmd::msgm { n uh h t } {
   fixenc n uh h t
+  if { [applyfilter msg *] } { return }
   if { [set cmdid [searchcmd t msg]] == "" } return
   prossed_cmd msg $n $uh $h "*" $t $cmdid
   return 1
 }
 proc ::ck::cmd::filt { i t } {
-#  set tt $t
-#  debug "dcctext:%s:%s:" [string length $t] [string bytelength $t]
   set enc [::getuser [::idx2hand $i] XTRA _ck.core.encoding]
   if { $enc eq "" || [string length $enc] == 1 } {
     fixenc t
@@ -740,34 +755,6 @@ proc ::ck::cmd::filt { i t } {
 	set t [encoding convertfrom [string range $enc 1 end] $t]
       }
     }
-#    set t [encoding convertfrom identity $t]
-#    putlog $t
-#    debug "alen: %s %s" [string length $t] [string bytelength $t]
-#    debug "alen: %s %s" [string length $t] [string bytelength $t]
-#    debug "enc: [string range $enc 1 end] ! %s" $t
-  }
-  if { [set cmdid [searchcmd t dcc]] == "" } {
-#    debug "len: %s %s" [string length $t] [string bytelength $t]
-#    set t [encoding convertto cp1251 $t]
-#    debug "len: %s %s" [string length $tt] [string bytelength $tt]
-#    set tt [encoding convertfrom cp1251 $tt]
-#    debug "len: %s %s" [string length $tt] [string bytelength $tt]
-#    set tt [encoding convertto cp1251 $tt]
-#    debug "len: %s %s" [string length $tt] [string bytelength $tt]
-#    set tt [encoding convertfrom identity $tt]
-#    debug "len: %s %s" [string length $tt] [string bytelength $tt]
-#    return [encoding convertto cp1251 $t]
-#    debug "len: %s %s" [string length $tt] [string bytelength $tt]
-#    return [encoding convertto cp1251 [encoding convertfrom cp1251 $tt]]
-#    return $t
-#    return [encoding convertto cp1251 $t]
-#    debug "len: %s %s" [string length $t] [string bytelength $t]
-    if { [info exists ::sp_version] } { return $t }
-    backenc t
-#    set t [encoding convertto cp1251 $t]
-#    debug "len: %s %s" [string length $t] [string bytelength $t]
-    return [encoding convertfrom identity $t]
-#    return $t
   }
   set uh "-telnet@"
   foreach_ [dcclist] {
@@ -776,6 +763,12 @@ proc ::ck::cmd::filt { i t } {
       set n [lindex $_ 1]
       break
     }
+  }
+  if { [applyfilter dcc [lindex [console $i] 0]] } { return "" }
+  if { [set cmdid [searchcmd t dcc]] == "" } {
+    if { [info exists ::sp_version] } { return $t }
+    backenc t
+    return [encoding convertfrom identity $t]
   }
   prossed_cmd dcc $n $uh $n [lindex [console $i] 0] $t $cmdid $i
   return ""
