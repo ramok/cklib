@@ -10,7 +10,7 @@
 ::ck::require strings  0.6
 
 namespace eval ::ck::cmd {
-  variable version 0.9
+  variable version 0.10
   variable author  "Chpock <chpock@gmail.com>"
 
   variable MAGIC "\000:\000"
@@ -171,12 +171,22 @@ proc ::ck::cmd::regfilter { fid fproc args } {
 
   getargs \
     -cmd str "" \
-    -event choice [list -all -msg -dcc -pub]
+    -all flag \
+    -pub flag \
+    -msg flag \
+    -dcc flag \
+    -prio int 10
+
+  if { !$(pub) && !$(msg) && !$(dcc) } { set (all) 1 }
+  if { $(all) } { set (msg) [set (pub) [set (dcc) 1]] }
 
   set tflt(proc)  $fproc
   set tflt(id)    $fid
   set tflt(acmd)  $(cmd)
-  set tflt(event) [lindex {all msg dcc pub} $(event)]
+  set tflt(prio)  $(prio)
+  set tflt(msg)   $(msg)
+  set tflt(pub)   $(pub)
+  set tflt(dcc)   $(dcc)
 
   set filters($fid) [array get tflt]
   array init bindmask
@@ -310,12 +320,11 @@ proc ::ck::cmd::updatebinds { type { target "" } } {
 
   set bindres [list]
   set maskres [list]
-  set filtres [list]
+  set filtres0 [set filtres1 [list]]
 
   foreach {id larray} [array get filters] {
     array init tflt $larray
-    debug $larray
-    if { $tflt(event) != "all" && $tflt(event) != $type } continue
+    if { !$tflt($type) } continue
     if { $tflt(acmd) ne "" } {
       if { ![info exists cmds($tflt(acmd))] } { debug -debug "Filter ID(%s) is disabled due attached command not exists." $id; continue }
       if { $type eq "pub" && ![cmd_checkchan $tflt(acmd) $target] } {
@@ -323,8 +332,8 @@ proc ::ck::cmd::updatebinds { type { target "" } } {
         continue
       }
     }
-    debug -debug "Add filter <%s> for cmd <%s> on <%s@%s>" $id $tflt(acmd) $target $type
-    lappend filtres $id $tflt(proc)
+    debug -debug "Add filter <%s> for cmd <%s> on <%s@%s> with prio %s" $id $tflt(acmd) $target $type $tflt(prio)
+    lappend filtres[expr { $tflt(prio)<=0?"0":"1" }] $id [list $tflt(prio) $tflt(proc)]
   }
 
   set pfixmask [string escape -regexp [config get "prefix.$type"]]
@@ -389,7 +398,8 @@ proc ::ck::cmd::updatebinds { type { target "" } } {
   }
   set bindmask([list "bind $type $target"]) $bindres
   set bindmask([list "mask $type $target"]) $maskres
-  set bindmask([list "filt $type $target"]) $filtres
+  set bindmask([list "filt 0$type $target"]) $filtres0
+  set bindmask([list "filt 1$type $target"]) $filtres1
 }
 proc ::ck::cmd::searchcmd { vart type { tg "" } } {
   variable bindmask
@@ -409,9 +419,9 @@ proc ::ck::cmd::searchcmd { vart type { tg "" } } {
   if { [llength $match] == 0 } return
   return [lindex [lindex [lsort -integer -index 0 $match] end] 1]
 }
-proc ::ck::cmd::applyfilter { CmdEvent {Channel ""} } {
+proc ::ck::cmd::applyfilter { CmdEvent precmd {Channel ""} } {
   variable bindmask
-  if { ![info exists bindmask([list "filt $CmdEvent $Channel"])] } { updatebinds $CmdEvent $Channel }
+  if { ![info exists bindmask([list "filt $precmd$CmdEvent $Channel"])] } { updatebinds $CmdEvent $Channel }
   switch -- $CmdEvent {
     msg - pub {
       upvar t Text n Nick uh UserHost h Handle
@@ -421,9 +431,9 @@ proc ::ck::cmd::applyfilter { CmdEvent {Channel ""} } {
       upvar t Text n Nick uh UserHost n Handle i CmdDCC
     }
   }
-  foreach {FilterId fproc} [set bindmask([list "filt $CmdEvent $Channel"])] {
+  foreach {FilterId fproc} [set bindmask([list "filt $precmd$CmdEvent $Channel"])] {
     debug -debug "Apply %s-filter\(%s\) <%s>..." $CmdEvent $Channel $FilterId
-    if { [catch [list $fproc] errStr] } {
+    if { [catch [list [lindex $fproc 1]] errStr] } {
       debug -err "Error %s-filter\(%s\) with proc <%s>: %s" $CmdEvent $Channel $fproc $errStr
       foreach_ [split $::errorInfo "\n"] {
 	debug -err- "  $_"
@@ -730,17 +740,21 @@ proc ::ck::cmd::reply { args } {
 }
 proc ::ck::cmd::pubm { n uh h tg t } {
   fixenc n uh h tg t
-  if { [applyfilter pub $tg] } { return }
-  if { [set cmdid [searchcmd t pub $tg]] == "" } return
-  prossed_cmd pub $n $uh $h $tg $t $cmdid
-  return 1
+  if { [applyfilter pub 0 $tg] } return
+  if { [set cmdid [searchcmd t pub $tg]] ne "" } {
+    prossed_cmd pub $n $uh $h $tg $t $cmdid
+  } {
+    applyfilter pub 1 $tg
+  }
 }
 proc ::ck::cmd::msgm { n uh h t } {
   fixenc n uh h t
-  if { [applyfilter msg *] } { return }
-  if { [set cmdid [searchcmd t msg]] == "" } return
-  prossed_cmd msg $n $uh $h "*" $t $cmdid
-  return 1
+  if { [applyfilter msg 0 *] } return
+  if { [set cmdid [searchcmd t msg]] ne "" } {
+    prossed_cmd msg $n $uh $h "*" $t $cmdid
+  } {
+    applyfilter msg 1 *
+  }
 }
 proc ::ck::cmd::filt { i t } {
   set enc [::getuser [::idx2hand $i] XTRA _ck.core.encoding]
@@ -764,8 +778,9 @@ proc ::ck::cmd::filt { i t } {
       break
     }
   }
-  if { [applyfilter dcc [lindex [console $i] 0]] } { return "" }
-  if { [set cmdid [searchcmd t dcc]] == "" } {
+  if { [applyfilter dcc 0 [lindex [console $i] 0]] } { return "" }
+  if { [set cmdid [searchcmd t dcc]] eq "" } {
+    if { [applyfilter dcc 1 [lindex [console $i] 0]] } { return "" }
     if { [info exists ::sp_version] } { return $t }
     backenc t
     return [encoding convertfrom identity $t]
