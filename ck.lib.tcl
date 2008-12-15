@@ -343,10 +343,13 @@ proc ::ck::require { module {ver "0.1"} } {
       }
     }
   }
-  if { [set "::ck::${module}::version"] < $ver } {
-    debug -err "Requested module %s version %s, but i have only %s." \
-      $module $ver [set "::ck::${module}::version"]
-    return -code error "Requested unknown module $module version ${ver}."
+  foreach x [split $ver .] y [split [set "::ck::${module}::version"] .] {
+    if { $x eq "" } break; if { $y eq "" } { set y 0 }
+    if { $y < $x } {
+      debug -err "Requested module %s version %s, but i have only %s." \
+        $module $ver [set "::ck::${module}::version"]
+      return -code error "Requested unknown module $module version ${ver}."
+    }
   }
   debug -debug "Module %s version %s loaded." $module [set "::ck::${module}::version"]
   return 0
