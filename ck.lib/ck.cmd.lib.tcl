@@ -520,7 +520,7 @@ proc ::ck::cmd::invoke_cmd { args } {
   # на доступ к команде и autousage проверки нет, предполагается что если делается invoke, тогда все проверки уже сделаны
   session event CmdPass
 }
-proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {CmdDCC ""} } {
+proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {CmdDCC ""} {CmdEventMark ""} } {
   variable cmds
   array set tcmd $cmds($CmdId)
 
@@ -530,7 +530,6 @@ proc ::ck::cmd::prossed_cmd { CmdEvent Nick UserHost Handle Channel Text CmdId {
   set StdArgs [split [string stripspace [string stripcolor $Text]] { }]
   set CmdReturn  [list]
   set CmdConfig   $tcmd(config)
-  set CmdEventMark ""
 
   session create -proc $tcmd(bind)
   session export -grab tcmd(namespace) as CmdNamespace \

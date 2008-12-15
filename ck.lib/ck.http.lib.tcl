@@ -304,9 +304,15 @@ proc ::ck::http::parse_headers { sid heads } {
     debug -debug "Configure socket for rcvd binary data."
     fconfigure $HttpSocket -encoding binary -translation binary
   } {
-    if { [regexp -nocase {^win(?:dows)?-(\d+)$} $enc - _] } { set enc "cp$_" }
+    set enc [string tolower $enc]
+    if { [regexp {^(?:win(?:dows)?|cp)-?(\d+)$} $enc - _] } { set enc "cp$_"
+    } elseif { [regexp {iso-?8859-(\d+)} $enc - _] } { set enc "iso8859-$_"
+    } elseif { [regexp {iso-?2022-(jp|kr)} $enc - _] } { set enc "iso2022-$_"
+    } elseif { [regexp {shift[-_]?js} $enc -] } { set enc "shiftjis"
+    } elseif { $enc eq "us-ascii" } { set enc "ascii"
+    } elseif { [regexp {(?:iso-?)?lat(?:in)?-?([1-5])} $enc - _] } { if { $_ == 5 } { set _ 9 }; set enc "iso8859-$_" }
     debug -debug "Configure socket for rcvd text data with charset: %s" $enc
-    if { [catch {fconfigure $HttpSocket -encoding [string tolower $enc] -translation auto}] } {
+    if { [catch {fconfigure $HttpSocket -encoding $enc -translation auto}] } {
       debug -warn "Encoding is unknown, fall-back to binary..."
       fconfigure $HttpSocket -encoding binary -translation binary
     }
