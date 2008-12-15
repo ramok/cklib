@@ -3,13 +3,13 @@
 ::ck::require sessions 0.3
 
 namespace eval ::ck::http {
-  variable version 0.4
+  variable version 0.5
   variable author  "Chpock <chpock@gmail.com>"
 
   namespace import -force ::ck::*
   namespace import -force ::ck::config::config
   namespace import -force ::ck::sessions::session
-  namespace export http
+  namespace export http charset2encoding
 }
 
 proc ::ck::http::init {  } {
@@ -42,6 +42,7 @@ proc ::ck::http::run { HttpUrl args } {
     -forcecharset flag \
     -return flag \
     -redirects int 2 \
+    -readlimit int 0 \
     -useragent str [config get ".mod.http.useragent"] \
     -proxyhost str [config get ".mod.http.proxyhost"] \
     -proxyport str [config get ".mod.http.proxyport"]
@@ -80,6 +81,7 @@ proc ::ck::http::run { HttpUrl args } {
   set HttpNoRecode   $(norecode)
   set HttpDefaultCP  $(charset)
   set HttpDefaultForceCP $(forcecharset)
+  set HttpReadLimit  $(readlimit)
 
   session create -child -proc ::ck::http::make_request \
     -parent-event HttpResponse -parent-mark $(mark)
@@ -201,6 +203,17 @@ proc ::ck::http::connected { sid } {
   session insert HttpIntStatus 4
   fileevent $HttpSocket readable [list ::ck::http::readable $sid]
 }
+proc ::ck::http::charset2encoding { enc } {
+  set enc [string tolower $enc]
+  if { [regexp {^(?:win(?:dows)?|cp)-?(\d+)$} $enc - _] } { set enc "cp$_"
+  } elseif { [regexp {iso-?8859-(\d+)} $enc - _] } { set enc "iso8859-$_"
+  } elseif { [regexp {iso-?2022-(jp|kr)} $enc - _] } { set enc "iso2022-$_"
+  } elseif { [regexp {shift[-_]?js} $enc -] } { set enc "shiftjis"
+  } elseif { $enc eq "us-ascii" } { set enc "ascii"
+  } elseif { [regexp {(?:iso-?)?lat(?:in)?-?([1-5])} $enc - _] } { if { $_ == 5 } { set _ 9 }; set enc "iso8859-$_" }
+  if { [lsearch -exact [string tolower [encoding names]] $enc] != -1 } { return $enc }
+  return "binary"
+}
 proc ::ck::http::parse_headers { sid heads } {
   set HttpMetaType     ""
   set HttpMetaCharset  ""
@@ -300,22 +313,12 @@ proc ::ck::http::parse_headers { sid heads } {
     }
   }
 
-  if { $enc == "binary" } {
+  if { $enc eq "binary" || [set xenc [charset2encoding $enc]] eq "binary" } {
     debug -debug "Configure socket for rcvd binary data."
     fconfigure $HttpSocket -encoding binary -translation binary
   } {
-    set enc [string tolower $enc]
-    if { [regexp {^(?:win(?:dows)?|cp)-?(\d+)$} $enc - _] } { set enc "cp$_"
-    } elseif { [regexp {iso-?8859-(\d+)} $enc - _] } { set enc "iso8859-$_"
-    } elseif { [regexp {iso-?2022-(jp|kr)} $enc - _] } { set enc "iso2022-$_"
-    } elseif { [regexp {shift[-_]?js} $enc -] } { set enc "shiftjis"
-    } elseif { $enc eq "us-ascii" } { set enc "ascii"
-    } elseif { [regexp {(?:iso-?)?lat(?:in)?-?([1-5])} $enc - _] } { if { $_ == 5 } { set _ 9 }; set enc "iso8859-$_" }
-    debug -debug "Configure socket for rcvd text data with charset: %s" $enc
-    if { [catch {fconfigure $HttpSocket -encoding $enc -translation auto}] } {
-      debug -warn "Encoding is unknown, fall-back to binary..."
-      fconfigure $HttpSocket -encoding binary -translation binary
-    }
+    debug -debug "Configure socket for rcvd text data with encoding: %s (%s)" $enc $xenc
+    fconfigure $HttpSocket -encoding $xenc -translation "auto"
   }
 
   return 1
@@ -323,7 +326,7 @@ proc ::ck::http::parse_headers { sid heads } {
 proc ::ck::http::readable { sid } {
   debug -debug "Call-back for http is prossed..."
   session unlock
-  session import -exact HttpSocket HttpData HttpMeta HttpIntStatus
+  session import -exact HttpSocket HttpData HttpMeta HttpIntStatus HttpReadLimit
   if { $HttpIntStatus == 4 } {
     while { [gets $HttpSocket line] != -1 } {
       if { $line == "" } {
@@ -346,7 +349,7 @@ proc ::ck::http::readable { sid } {
   if { $HttpIntStatus == 5 } {
     append HttpData [read $HttpSocket]
     session export -grab HttpData
-    if { [eof $HttpSocket] } {
+    if { [eof $HttpSocket] || ($HttpReadLimit && [string length $HttpData] >= $HttpReadLimit) } {
       catch { fileevent $HttpSocket readable {} }
       catch { close $HttpSocket }
       session set HttpIntStatus 6
