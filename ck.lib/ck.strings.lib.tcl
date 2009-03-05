@@ -65,6 +65,31 @@ proc ::ck::strings::init {  } {
   set const(r2t)    "
     й y ц c у u к k е e н n г g ш sh щ sh з z х h ъ ' ф f ы i в v а a п p р r о o л l д d ж zh э e я ya ч ch с s м m и i т t ь ' б b ю yu"
 
+  set const(dehtml) {
+        &nbsp; \x20 &quot; \x22 &amp; \x26 &apos; \x27 &ndash; \x2d
+        &lt; \x3C &gt; \x3E &tilde; \x7E &euro; \x80 &iexcl; \xA1
+        &cent; \xA2 &pound; \xA3 &curren; \xA4 &yen; \xA5 &brvbar; \xA6
+        &sect; \xA7 &uml; \xA8 &copy; \xA9 &ordf; \xAA &laquo; \x60
+        &not; \xAC &shy; \xAD &reg; \xAE &hibar; \xAF &deg; \xB0
+        &plusmn; \xB1 &sup2; \xB2 &sup3; \xB3 &acute; \xB4 &micro; \xB5
+        &para; \xB6 &middot; \xB7 &cedil; \xB8 &sup1; \xB9 &ordm; \xBA
+        &raquo; \x60 &frac14; \xBC &frac12; \xBD &frac34; \xBE &iquest; \xBF
+        &Agrave; \xC0 &Aacute; \xC1 &Acirc; \xC2 &Atilde; \xC3 &Auml; \xC4
+        &Aring; \xC5 &AElig; \xC6 &Ccedil; \xC7 &Egrave; \xC8 &Eacute; \xC9
+        &Ecirc; \xCA &Euml; \xCB &Igrave; \xCC &Iacute; \xCD &Icirc; \xCE
+        &Iuml; \xCF &ETH; \xD0 &Ntilde; \xD1 &Ograve; \xD2 &Oacute; \xD3
+        &Ocirc; \xD4 &Otilde; \xD5 &Ouml; \xD6 &times; \xD7 &Oslash; \xD8
+        &Ugrave; \xD9 &Uacute; \xDA &Ucirc; \xDB &Uuml; \xDC &Yacute; \xDD
+        &THORN; \xDE &szlig; \xDF &agrave; \xE0 &aacute; \xE1 &acirc; \xE2
+        &atilde; \xE3 &auml; \xE4 &aring; \xE5 &aelig; \xE6 &ccedil; \xE7
+        &egrave; \xE8 &eacute; \xE9 &ecirc; \xEA &euml; \xEB &igrave; \xEC
+        &iacute; \xED &icirc; \xEE &iuml; \xEF &eth; \xF0 &ntilde; \xF1
+        &ograve; \xF2 &oacute; \xF3 &ocirc; \xF4 &otilde; \xF5 &ouml; \xF6
+        &divide; \xF7 &oslash; \xF8 &ugrave; \xF9 &uacute; \xFA &ucirc; \xFB
+        &uuml; \xFC &yacute; \xFD &thorn; \xFE &yuml; \xFF &mdash; \x2d
+        &bull; \x2a
+  }
+
   if { [catch {rename ::string ::ck::strings::string} errStr] } { rename ::string "" }
   rename ::_string ::string
 
@@ -276,18 +301,13 @@ proc ::ck::strings::untag {str} {
   return $str
 }
 proc ::ck::strings::unspec {str} {
+  variable const
   set ret ""
   while { [regexp {^(.*?)&#(\d{1,4});(.*)$} $str - p e str] } {
     append ret $p [format %c [string trimleft $e 0]]
   }
   set str [append ret $str]
-  regsub -all -nocase -- {&quot;} $str {'}   str
-  regsub -all -nocase -- {&gt;}   $str {>}   str
-  regsub -all -nocase -- {&lt;}   $str {<}   str
-  regsub -all -nocase -- {&copy;} $str {(c)} str
-  regsub -all -nocase -- {&nbsp;} $str { }   str
-  regsub -all -nocase -- {&amp;} $str {\&}   str
-#  regsub -all -nocase -- {&[a-z];}  $str {}    str
+  set str [string map -nocase $const(dehtml) $str]
   return $str
 }
 proc ::ck::strings::html {args} {
