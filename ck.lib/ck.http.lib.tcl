@@ -249,13 +249,12 @@ proc ::ck::http::parse_headers { sid heads } {
 	}
       }
       "Location" {
-            regexp -nocase -- {(http://[^/]+)(?:/|$)} $HttpUrl -> url
-            if {![string match "http://*" $v]} {
-                append url "/" [string trimleft $v "/"]
+            if {[regexp -nocase -- {^https?://} $v]} {
+                set HttpMetaLocation $v
             } else {
-                set url $v
+                regexp -nocase -- {^(https?://[^/\?]+)} $HttpUrl -> url
+                set HttpMetaLocation "${url}/[string trimleft $v /]"
             }
-	        set HttpMetaLocation $vurl
       }
       "Set-Cookie" {
         set v [split $v {;}]
