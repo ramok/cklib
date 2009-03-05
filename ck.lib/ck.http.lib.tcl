@@ -224,6 +224,8 @@ proc ::ck::http::parse_headers { sid heads } {
   set HttpMeta         [list]
 
   session insert HttpStatus -104 HttpError "Error while parse headers."
+  
+  session import -exact HttpUrl
 
   set_ [lindex $heads 0]
   debug -debug "Rcvd HTTP reply: %s" $_
@@ -247,7 +249,13 @@ proc ::ck::http::parse_headers { sid heads } {
 	}
       }
       "Location" {
-	set HttpMetaLocation $v
+            regexp -nocase -- {(http://[^/]+)(?:/|$)} $HttpUrl -> url
+            if {![string match "http://*" $v]} {
+                append url "/" [string trimleft $v "/"]
+            } else {
+                set url $v
+            }
+	        set HttpMetaLocation $vurl
       }
       "Set-Cookie" {
         set v [split $v {;}]
