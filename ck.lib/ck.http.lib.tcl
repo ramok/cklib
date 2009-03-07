@@ -251,9 +251,16 @@ proc ::ck::http::parse_headers { sid heads } {
       "Location" {
             if {[regexp -nocase -- {^https?://} $v]} {
                 set HttpMetaLocation $v
-            } else {
+            } elseif {[string index $v 0] eq "/"} {
                 regexp -nocase -- {^(https?://[^/\?]+)} $HttpUrl -> url
-                set HttpMetaLocation "${url}/[string trimleft $v /]"
+                set HttpMetaLocation "${url}${v}"
+            } else {
+                set url2 [lindex [split $HttpUrl {?}] 0]
+                if {[regexp -nocase -- {^(https?://.+/)} $url2 -> url]} {
+                    set HttpMetaLocation "${url}${v}"
+                } else {
+                    set HttpMetaLocation "${url2}/${v}"
+                }
             }
       }
       "Set-Cookie" {
