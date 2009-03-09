@@ -192,7 +192,7 @@ proc ::weather::update { sid } {
   foreach_ [split $HttpData "\n"] {
     set_ [string trim $_]
     if { $_ eq "" } continue
-    if { ![regexp {^[0-9-]+\s+(\d{5})\s+[0-9-]+\s+[0-9-]+\s+(.+)$} $_ - n g] } {
+    if { ![regexp {^[0-9-]+\s+([0-9-]{5})\s+[0-9-]+\s+[0-9-]+\s+(.+)$} $_ - n g] } {
       reply -err upd.pars
     }
     lappend datalist [list $g $n]
