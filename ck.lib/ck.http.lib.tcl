@@ -238,8 +238,8 @@ proc ::ck::http::parse_headers { sid heads } {
     if { ![regexp {^([^:]+):\s+(.+)$} $_ - k v] } continue
     debug -raw "  < %-15s: %s" $k $v
     lappend HttpMeta $k $v
-    switch -exact -- $k {
-      "Content-Type" {
+    switch -exact -- [string tolower $k] {
+      "content-type" {
         set v [split $v {;}]
 	set HttpMetaType [string trim [lindex $v 0]]
 	foreach l [lrange $v 1 end] {
@@ -248,7 +248,7 @@ proc ::ck::http::parse_headers { sid heads } {
 	  break
 	}
       }
-      "Location" {
+      "location" {
             if {[regexp -nocase -- {^https?://} $v]} {
                 set HttpMetaLocation $v
             } elseif {[string index $v 0] eq "/"} {
@@ -263,12 +263,12 @@ proc ::ck::http::parse_headers { sid heads } {
                 }
             }
       }
-      "Set-Cookie" {
+      "set-cookie" {
         set v [split $v {;}]
         set_ [split [lindex $v 0] =]
         lappend HttpMetaCookie [list [lindex_ 0] [join [lrange $_ 1 end] =]]
       }
-      "Content-Length" {
+      "content-length" {
 	if { ![string isnum -int -unsig -- $v] } {
 	  debug -warn "Bad <Content-Length> filed in headers."
 	  continue
