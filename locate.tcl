@@ -206,6 +206,7 @@ proc ::locate::got_whois { sid } {
 	    session event -return MakeWhois WhoisServer "whois.lacnic.net"
 	  }
 	  debug -warn "rcvd redirect while whois <%s>, but already at alcnic..." $LocIP
+    continue
 	} else {
 	  debug -debug "pre str:%s:" $line
 	  continue

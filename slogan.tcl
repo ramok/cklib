@@ -31,12 +31,12 @@ proc ::slogan::run { sid } {
   session import
   if { $Event eq "CmdPass" } {
     set Text [join [lrange $StdArgs 1 end] { }]
-    http run "http://slogen.ru/server.php" -query [list "slogan" $Text] -query-codepage utf-8 -return
+    http run "http://slogen.ru/pda/index.php" -post -query [list "slogan" $Text] -query-codepage utf-8 -return
   }
 
   if { $HttpStatus < 0 } { reply -err conn }
 
-  if { ![regexp -nocase {<comment encoded="[\%a-fA-F0-9]*[^>]*?>(.*?)</comment>} $HttpData - Slogan] } {
+  if { ![regexp -nocase {<div class="slogan1">(.*?)</div>} $HttpData - Slogan] } {
     reply -err parse
   }
 
