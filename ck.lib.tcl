@@ -271,7 +271,7 @@ proc ::ck::source { fn { apath - } } {
       if { [catch [list encoding system $fenc] errStr] } {
 	debug -error "Can't set encoding of script %s to %s" $xfn $fenc
 	encoding system $senc
-	unset $senc
+	unset senc
       } {
 #	debug -notice "Set encoding %s for script %s" $fenc $xfn
       }
