@@ -211,6 +211,7 @@ proc ::ck::http::charset2encoding { enc } {
   } elseif { [regexp {shift[-_]?js} $enc -] } { set enc "shiftjis"
   } elseif { $enc eq "us-ascii" } { set enc "ascii"
   } elseif { [regexp {(?:iso-?)?lat(?:in)?-?([1-5])} $enc - _] } { if { $_ == 5 } { set _ 9 }; set enc "iso8859-$_" }
+  if { $enc eq "utf8" } { set enc "utf-8" }
   if { [lsearch -exact [string tolower [encoding names]] $enc] != -1 } { return $enc }
   return "binary"
 }
