@@ -215,7 +215,7 @@ proc ::weather::weather_request { sid } {
   if { $Event eq "SessionInit" } {
     cache makeid $RequestCityNum
     if { ![cache get HttpData] } {
-      http run "http://gen.gismeteo.ru/plnt/T${RequestCityNum}.TXT" -return
+      http run "http://informer.gismeteo.ru/xml/${RequestCityNum}_1.xml" -return
     }
   } elseif { $Event eq "HttpResponse" } {
     if { $HttpStatus < 0 } {
@@ -226,15 +226,16 @@ proc ::weather::weather_request { sid } {
   }
 
   array set result [list]
-  foreach_ [split $HttpData \n] {
-    debug -raw "data: %s" $_
-    if { [llength [set_ [split_ ,]]] != 17 } continue
+
+  foreach [list _ Day Month Year Hour Cloud Precip MaxP MinP MaxT MinT MinW MaxW RumbW MaxRW MinRW MinHT MaxHT] \
+            [regexp -all -inline -- \
+                {<FORECAST day="([^\"]+)" month="([^\"]+)" year="([^\"]+)" hour="([^\"]+)"[^>]*>\s*<PHENOMENA cloudiness="([^\"]+)" precipitation="([^\"]+)"[^>]*>\s*<PRESSURE max="([^\"]+)" min="([^\"]+)"/>\s*<TEMPERATURE max="([^\"]+)" min="([^\"]+)"/>\s*<WIND min="([^\"]+)" max="([^\"]+)" direction="([^\"]+)"/>\s*<RELWET max="([^\"]+)" min="([^\"]+)"/>\s*<HEAT min="([^\"]+)" max="([^\"]+)"/>\s*</FORECAST>} \
+                  $HttpData] {
+    debug -raw "data: %s" "$Day $Month $Year $Hour $Cloud $Precip $MaxP $MinP $MaxT $MinT $MinW $MaxW $RumbW $MaxRW $MinRW $MinHT $MaxHT"
     array set {} [list]
-    foreach_ $_ {
-      if { [llength [set_ [split_ =]]] != 2 } { unset {}; break }
-      set ([lindex_ 0]) [lindex_ 1]
+    foreach _ [list Day Month Year Hour Cloud Precip MaxP MinP MaxT MinT MinW MaxW RumbW MaxRW MinRW MinHT MaxHT] {
+      set ($_) [set $_]
     }
-    if { ![array exists {}] } continue
     set id "$(Year)[0 $(Month)][0 $(Day)][0 $(Hour)]"
     set result($id) [array get {}]
     unset {}
@@ -243,7 +244,7 @@ proc ::weather::weather_request { sid } {
   if { ![array size result] } {
     debug -err "while parsing data:"
     foreach_ [split $HttpData \n] {
-      if { ![string length $_] } coninue
+      if { ![string length $_] } continue
       debug -err- "  > %s" $_
     }
     session return WeatherStatus -50 WeatherError "while parsing data."
