@@ -208,7 +208,7 @@ proc ::ck::http::charset2encoding { enc } {
   if { [regexp {^(?:win(?:dows)?|cp)-?(\d+)$} $enc - _] } { set enc "cp$_"
   } elseif { [regexp {iso-?8859-(\d+)} $enc - _] } { set enc "iso8859-$_"
   } elseif { [regexp {iso-?2022-(jp|kr)} $enc - _] } { set enc "iso2022-$_"
-  } elseif { [regexp {shift[-_]?js} $enc -] } { set enc "shiftjis"
+  } elseif { [regexp {shift[-_]?ji?s} $enc -] } { set enc "shiftjis"
   } elseif { $enc eq "us-ascii" } { set enc "ascii"
   } elseif { $enc eq "utf8" } { set enc "utf-8"
   } elseif { [regexp {(?:iso-?)?lat(?:in)?-?([1-5])} $enc - _] } { if { $_ == 5 } { set _ 9 }; set enc "iso8859-$_" }
@@ -225,7 +225,7 @@ proc ::ck::http::parse_headers { sid heads } {
   set HttpMeta         [list]
 
   session insert HttpStatus -104 HttpError "Error while parse headers."
-  
+
   session import -exact HttpUrl
 
   set_ [lindex $heads 0]
@@ -389,16 +389,20 @@ proc ::ck::http::handler { sid } {
   if { $HttpStatus == -1 } {
     if { $HttpMetaLocation != "" } {
       debug -notice "Recivied redirect to url\(%s\)..." $HttpMetaLocation
-      if { $HttpRequest == 1 } {
-	set HttpRequest 0
+      if { $HttpRedirCount < $HttpRedirAuto } {
+        if { $HttpRequest == 1 } {
+          set HttpRequest 0
+        }
+        session insert HttpUrl $HttpMetaLocation \
+          HttpRequest 0 \
+          HttpQuery "" \
+          HttpRequest $HttpRequest \
+          HttpRedirCount [expr { $HttpRedirCount + 1 }]
+        make_request $sid
+        return
+      } {
+        debug -warn "Reached the limit\(%s\) of redirections." $HttpRedirAuto
       }
-      session insert HttpUrl $HttpMetaLocation \
-        HttpRequest 0 \
-        HttpQuery "" \
-	HttpRequest $HttpRequest \
-        HttpRedirCount [expr { $HttpRedirCount + 1 }]
-      make_request $sid
-      return
     } {
       debug -warn "Recivied redirect header and -redirects option, but don't have location, so no redirect."
     }
