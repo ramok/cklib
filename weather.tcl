@@ -229,7 +229,7 @@ proc ::weather::weather_request { sid } {
 
   foreach [list _ Day Month Year Hour Cloud Precip MaxP MinP MaxT MinT MinW MaxW RumbW MaxRW MinRW MinHT MaxHT] \
             [regexp -all -inline -- \
-                {<FORECAST day="([^\"]+)" month="([^\"]+)" year="([^\"]+)" hour="([^\"]+)"[^>]*>\s*<PHENOMENA cloudiness="([^\"]+)" precipitation="([^\"]+)"[^>]*>\s*<PRESSURE max="([^\"]+)" min="([^\"]+)"/>\s*<TEMPERATURE max="([^\"]+)" min="([^\"]+)"/>\s*<WIND min="([^\"]+)" max="([^\"]+)" direction="([^\"]+)"/>\s*<RELWET max="([^\"]+)" min="([^\"]+)"/>\s*<HEAT min="([^\"]+)" max="([^\"]+)"/>\s*</FORECAST>} \
+                {<FORECAST day="0?([^\"]+)" month="0?([^\"]+)" year="([^\"]+)" hour="0?([^\"]+)"[^>]*>\s*<PHENOMENA cloudiness="([^\"]+)" precipitation="([^\"]+)"[^>]*>\s*<PRESSURE max="([^\"]+)" min="([^\"]+)"/>\s*<TEMPERATURE max="([^\"]+)" min="([^\"]+)"/>\s*<WIND min="([^\"]+)" max="([^\"]+)" direction="([^\"]+)"/>\s*<RELWET max="([^\"]+)" min="([^\"]+)"/>\s*<HEAT min="([^\"]+)" max="([^\"]+)"/>\s*</FORECAST>} \
                   $HttpData] {
     debug -raw "data: %s" "$Day $Month $Year $Hour $Cloud $Precip $MaxP $MinP $MaxT $MinT $MinW $MaxW $RumbW $MaxRW $MinRW $MinHT $MaxHT"
     array set {} [list]
