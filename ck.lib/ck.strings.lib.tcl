@@ -69,11 +69,11 @@ proc ::ck::strings::init {  } {
         &nbsp; \x20 &quot; \x22 &amp; \x26 &apos; \x27 &ndash; \x2d
         &lt; \x3C &gt; \x3E &tilde; \x7E &euro; \x80 &iexcl; \xA1
         &cent; \xA2 &pound; \xA3 &curren; \xA4 &yen; \xA5 &brvbar; \xA6
-        &sect; \xA7 &uml; \xA8 &copy; \xA9 &ordf; \xAA &laquo; \x60
+        &sect; \xA7 &uml; \xA8 &copy; \xA9 &ordf; \xAA &laquo; \xAB
         &not; \xAC &shy; \xAD &reg; \xAE &hibar; \xAF &deg; \xB0
         &plusmn; \xB1 &sup2; \xB2 &sup3; \xB3 &acute; \xB4 &micro; \xB5
         &para; \xB6 &middot; \xB7 &cedil; \xB8 &sup1; \xB9 &ordm; \xBA
-        &raquo; \x60 &frac14; \xBC &frac12; \xBD &frac34; \xBE &iquest; \xBF
+        &raquo; \xBB &frac14; \xBC &frac12; \xBD &frac34; \xBE &iquest; \xBF
         &Agrave; \xC0 &Aacute; \xC1 &Acirc; \xC2 &Atilde; \xC3 &Auml; \xC4
         &Aring; \xC5 &AElig; \xC6 &Ccedil; \xC7 &Egrave; \xC8 &Eacute; \xC9
         &Ecirc; \xCA &Euml; \xCB &Igrave; \xCC &Iacute; \xCD &Icirc; \xCE
@@ -87,7 +87,7 @@ proc ::ck::strings::init {  } {
         &ograve; \xF2 &oacute; \xF3 &ocirc; \xF4 &otilde; \xF5 &ouml; \xF6
         &divide; \xF7 &oslash; \xF8 &ugrave; \xF9 &uacute; \xFA &ucirc; \xFB
         &uuml; \xFC &yacute; \xFD &thorn; \xFE &yuml; \xFF &mdash; \x2d
-        &bull; \x2a
+        &bull; \x2a &rlm; {} &lrm; {} &#x202a; {} &#x202c; {}
   }
 
   if { [catch {rename ::string ::ck::strings::string} errStr] } { rename ::string "" }
@@ -302,13 +302,13 @@ proc ::ck::strings::untag {str} {
 }
 proc ::ck::strings::unspec {str} {
   variable const
-  set ret ""
-  while { [regexp {^(.*?)&#(\d{1,4});(.*)$} $str - p e str] } {
-    append ret $p [format %c [string trimleft $e 0]]
-  }
-  set str [append ret $str]
-  set str [string map -nocase $const(dehtml) $str]
-  return $str
+
+  set str [string map {\[ \\\[ \] \\\] \( \\\( \) \\\) \{ \\\{ \} \\\} \\ \\\\} [string map -nocase $const(dehtml) $str]]
+  regsub -all -- {&#([[:digit:]]{1,5});} $str {[format %c [string trimleft "\1" "0"]]} str
+  regsub -all -- {&#x([[:xdigit:]]{1,4});} $str {[format %c [scan "\1" %x]]} str
+  regsub -all -- {&#?[[:alnum:]]{2,7};} $str "" str
+
+  return [subst -nov $str]
 }
 proc ::ck::strings::html {args} {
   set cmd [lindex $args 0]

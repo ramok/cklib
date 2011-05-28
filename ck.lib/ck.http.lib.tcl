@@ -3,7 +3,7 @@
 ::ck::require sessions 0.3
 
 namespace eval ::ck::http {
-  variable version 0.5
+  variable version 0.6
   variable author  "Chpock <chpock@gmail.com>"
 
   namespace import -force ::ck::*
@@ -82,6 +82,8 @@ proc ::ck::http::run { HttpUrl args } {
   set HttpDefaultCP  $(charset)
   set HttpDefaultForceCP $(forcecharset)
   set HttpReadLimit  $(readlimit)
+  set HttpCommand  "socket"
+  set HttpTlsPakage [catch {package require tls}]
 
   session create -child -proc ::ck::http::make_request \
     -parent-event HttpResponse -parent-mark $(mark)
@@ -89,13 +91,13 @@ proc ::ck::http::run { HttpUrl args } {
   if { $(return) } { return -code return }
 }
 proc ::ck::http::make_request { sid } {
-  session import -exact HttpUrl HttpRequest HttpQuery HttpProxyPort HttpProxyHost
+  session import -exact HttpUrl HttpRequest HttpQuery HttpProxyPort HttpProxyHost HttpCommand HttpTlsPakage
 
   if { ![regexp -nocase {^([a-z]+://)?([^@/#?]+@)?([^:/#?]+)(:\d+)?(/[^#]+?)?} $HttpUrl - proto user host port path] } {
     debug -err "Error parse url: %s" $HttpUrl
     session return HttpStatus -900 HttpError "Error while parse url."
   }
-  if { $proto ne "" && ![string equal -nocase $proto "http://"] } {
+  if { $proto ne "" && ([set proto [string tolower $proto]] ne "http://" && !($HttpTlsPakage == 0 && $proto eq "https://")) } {
     debug -err "Protocol <%s> is not supported in url: %s" $proto $HttpUrl
     session return HttpStatus -900 HttpError "Protocol <${proto}> is not supported."
   }
@@ -110,6 +112,11 @@ proc ::ck::http::make_request { sid } {
     append HttpUrl "?" $HttpQuery
     session export -grab HttpUrl
   }
+  
+  if { $proto eq "https://"} {
+  	set HttpCommand "::tls::socket"
+    session export -grab HttpCommand
+  }
 
   if {[regexp -- {[^\x01-\x7f]} $host]} {set host [domain_toascii $host]}
 
@@ -120,7 +127,7 @@ proc ::ck::http::make_request { sid } {
     set host $HttpProxyHost
     set port $HttpProxyPort
   } elseif { $port == "" } {
-    set port "80"
+    set port [expr {[string equal -nocase $proto "https://"]? "443" : "80"}]
   } else {
     set port [string trimleft $port :]
   }
@@ -129,7 +136,7 @@ proc ::ck::http::make_request { sid } {
   session insert HttpMeta [list] HttpData ""
 
   debug -debug "Trying connect to %s:%s" $host $port
-  if { [catch {socket -async $host $port} HttpSocket] } {
+  if { [catch {$HttpCommand -async $host $port} HttpSocket] } {
     session return HttpStatus -100 HttpError $HttpSocket
   }
 
@@ -346,6 +353,7 @@ proc ::ck::http::readable { sid } {
   session import -exact HttpSocket HttpData HttpMeta HttpIntStatus HttpReadLimit
   if { $HttpIntStatus == 4 } {
     while { [gets $HttpSocket line] != -1 } {
+	  set line [string trim $line]
       if { $line == "" } {
 	if { [parse_headers $sid $HttpMeta] } {
 	  debug -debug "Headers parsed, downloading body..."
