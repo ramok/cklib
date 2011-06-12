@@ -59,7 +59,7 @@ proc ::cyborg::run { sid } {
     }
     set word [split $word {}]
   } {
-    if { ![regexp {<p class="mediumheader">([^:]+):\s+([^>]+)</p>} $HttpData - word acronym] } {
+    if { ![regexp {<div class="mediumheader">([^:]+):\s+([^>]+)</div>} $HttpData - word acronym] } {
       reply -err parse
     }
     set word [split [string trim $word .] .]
