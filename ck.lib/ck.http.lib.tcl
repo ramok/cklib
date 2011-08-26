@@ -112,10 +112,14 @@ proc ::ck::http::make_request { sid } {
     append HttpUrl "?" $HttpQuery
     session export -grab HttpUrl
   }
-  
+
   if { $proto eq "https://"} {
   	set HttpCommand "::tls::socket"
     session export -grab HttpCommand
+  } elseif {[string is space $proto]} {
+  	set proto "http://"
+  	set HttpUrl "http://$HttpUrl"
+  	session export -grab HttpUrl
   }
 
   if {[regexp -- {[^\x01-\x7f]} $host]} {set host [domain_toascii $host]}
