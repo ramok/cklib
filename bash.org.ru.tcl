@@ -278,11 +278,14 @@ proc ::bashorgru::run { sid } {
 }
 proc ::bashorgru::parse { HttpData } {
   set_ [list]
-  while { [regexp {<div class="q">\s*<div class="vote">\s*(.*?)</div>\s*<div>(.*?)</div>\s*(.*)$} $HttpData - 1 a2 HttpData] } {
-    if { [string first {</form>} $a2] != -1 } continue
-    if { ![regexp {^(?:<a href=./quote/[^>]+>)?(\d+)} $1 - a1] } set\ a1\ ?
-    if { ![regexp {<span.*?>(.*?)</span>.*?\s+(\S+ \S+ \S+)\s*(?:\([^\)]+\)|)\s*$} $1 - a3 a4] } { set a3 [set a4 ?] }
-    lappend_ [list $a1 $a2 $a3 [set a4 [string trim $a4]]]
+  while { [regexp {<div class=.quote.>(.*?)<div class=.text.>(.*?)</div>\s*</div>} $HttpData - 1 a2 HttpData] } {
+#script
+    if { $1 eq "" } continue
+#script
+    if { ![regexp {(?:<a href=./quote/[^>]+>)?(\d+)} $1 - a1] } set\ a1\ ?
+    if { ![regexp {(?:class=.rating[^>]+>)([^<]+)} $1 - a3] } set\ a3\ ?
+    if { ![regexp {(?:class=.date[^>]+>)([^<]+)} $1 - a4] } set\ a4\ ?
+    lappend_ [list $a1 $a2 $a3 $a4]
     debug -debug "qnum: %s" $a1
     debug -debug "qtxt: %s" $a2
     debug -debug "qscr: %s" $a3
