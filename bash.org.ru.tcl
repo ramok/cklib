@@ -268,7 +268,7 @@ proc ::bashorgru::run { sid } {
       set_ [cmark [append x $_]]
     }
     if { [expr rand()] < 0.5 } { set frm "1" } { set frm "2" }
-    reply -noperson "prequote$frm" $_
+    reply -noperson -multi "prequote$frm" $_
     if { [incr linenum] >= [config get num.max] && [set_ [expr { [llength $QuoteData] } - $linenum]] } {
       if { [info exists QuoteChasm] && $QuoteChasm } { reply -noperson -return tailxchasm $QuoteRate $QuoteDate $_ }
       reply -noperson -return tailx $QuoteRate $QuoteDate $_ $QuoteNum
