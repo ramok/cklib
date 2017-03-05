@@ -22,13 +22,16 @@ proc ::quotes::init {} {
     Если шаблон не задан - вывести случайную цитату.}
   cmd doc -link [list "quote" "delquote"] "addquote" {~*!addquote~ <цитата>~ - добавить цитату.}
   cmd doc -link [list "quote" "addquote"] "delquote" {~*!delquote~ <шаблон>~ - удалить цитату по шаблону.}
+  cmd doc -link [list "quote" "statquote"] "statquote" {~*!statquote~ <top20,top40,top60>~ - показать статистику.}
 
   cmd register quote ::quotes::run \
     -bind "q|uote" -config "quotes"
   cmd register addquote ::quotes::addquote -autousage -doc "addquote" \
     -bind "addq|uote" -bind "quoteadd" -bind {+quote} -config "quotes"
   cmd register delquote ::quotes::delquote -autousage -doc "delquote" \
-    -bind "delq|uote" -bind "quotedel" -bind "-quote" -config "quotes"
+    -bind "delq|uote" -bind "qdel" -bind "quotedel" -bind "-quote" -config "quotes"
+  cmd register statquote ::quotes::statquote -doc "statquote" \
+    -bind "statq|uote" -bind "qstat" -bind "quotestat" -config "quotes"
 
   config register -id "remflags" -type str -default "o|" \
     -desc "Flags for removing quotes." -access "m" -folder "quotes"
@@ -41,6 +44,7 @@ proc ::quotes::init {} {
     quote.num      "&K[&B%s&K/&b%s&K]&n "
     quote.aut      " &K[&n%s&K]"
     quote.main     %s%s%s
+    quote.stat     %s
     del.done       &BЦитата с номером &r#&R%s&B удалена. &K(&n%s&K)
     add.done       &BЦитата добавлена с номером &r#&R%s
     add.reject     &rВы не можете добавить такую цитату.
@@ -92,6 +96,53 @@ proc ::quotes::run { sid } {
 
   reply quote.main $rnum [lindex $q 0] [cformat quote.aut $auth]
 }
+
+proc ::quotes::statquote { sid } {
+    variable quote
+    session import
+
+    if { [llength $quote] == 0 } {
+        reply -err noquote
+    }
+
+    set qmatch [list]
+    foreach q $quote {
+        foreach nick [regexp -all -inline {[^">: ]+[:>] |^\* [^ :]+ } $q] {
+            # "
+            regsub -all {^[\{<@+*% ]+|[>:0-9 ]*$} $nick {} nick
+            lappend nicks $nick
+        }
+        set nicks [lsort -unique $nicks]
+        foreach nick $nicks {
+            incr stat($nick)
+        }
+        set nicks {}
+    }
+
+    set lstat {}
+    foreach {nick cnt} [array get stat] {
+        lappend lstat [list $nick: $cnt]
+    }
+
+    set lstat [lsort -decreasing -integer -index 1 $lstat]
+
+    switch [lindex $StdArgs 1] {
+        top60 {
+            set msg "quotes top60: [join [lrange $lstat 41 60] ", "]"
+        }
+
+        top40 {
+            set msg "quotes top40: [join [lrange $lstat 21 40] ", "]"
+        }
+
+        top20 -
+        default {
+            set msg "quotes top20: [join [lrange $lstat 0 20] ", "]"
+        }
+    }
+    reply quote.stat $msg
+}
+
 proc ::quotes::addquote { sid } {
   variable quote
   session import
