@@ -41,7 +41,7 @@ proc ::ck::eggdrop::putidx {idx txt} {
   if { [string exists "T" [idx2flags $idx]] } { set txt [string strongspace [color mirc2ansi $txt]] }
   if { [catch {::getuser [::idx2hand $idx] XTRA _ck.core.encoding} enc] || [string length $enc] < 2 } {
     ::putidx $idx [backencstr $txt]\r
-  } elseif { [info exists ::sp_version] } {
+  } elseif {$::numversion >= 1080000 || [info exists ::sp_version] } {
     if { [string equal -nocase [set x [encoding system]] [set enc [string range $enc 1 end]]] } {
       ::putidx $idx $txt\r
     } {

@@ -397,7 +397,7 @@ proc ::ck::etimer_run { id } {
   }
   set etimers($id) [lreplace $_ 3 3 [after [lindex_ 1] [list ::ck::etimer_run $id]]]
 }
-if [info exists sp_version] {
+if {$::numversion >= 1080000 || [info exists sp_version]} {
   proc ::ck::fixenc args {}
   proc ::ck::backenc args {}
   proc ::ck::fixencstr str return\ \$str

@@ -760,7 +760,7 @@ proc ::ck::cmd::filt { i t } {
   if { $enc eq "" || [string length $enc] == 1 } {
     fixenc t
   } {
-    if { [info exists ::sp_version] } {
+    if {$::numversion >= 1080000 || [info exists ::sp_version]} {
       set t [encoding convertto $t]
       set t [encoding convertfrom [string range $enc 1 end] $t]
     } {
@@ -780,7 +780,7 @@ proc ::ck::cmd::filt { i t } {
   if { [applyfilter dcc 0 [lindex [console $i] 0]] } { return "" }
   if { [set cmdid [searchcmd t dcc]] eq "" } {
     if { [applyfilter dcc 1 [lindex [console $i] 0]] } { return "" }
-    if { [info exists ::sp_version] } { return $t }
+    if {$::numversion >= 1080000 || [info exists ::sp_version]} { return $t }
     backenc t
     return [encoding convertfrom identity $t]
   }
