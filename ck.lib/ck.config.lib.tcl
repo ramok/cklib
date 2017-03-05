@@ -40,8 +40,8 @@ proc ::ck::config::init {} {
   array init ::ck::config::rconf
   datafile register config -bot -net -backup
   load
-  bind dcc - "set"  ::ck::config::cset
-  bind dcc - "set?" ::ck::config::cset?
+  bind dcc - "cset"  ::ck::config::cset
+  bind dcc - "cset?" ::ck::config::cset?
 
   config register -folder ".core" -id "encoding" -access "" -personal \
     -type encoding -default "" -desc "Codepage in patyline."
