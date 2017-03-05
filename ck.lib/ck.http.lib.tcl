@@ -38,7 +38,7 @@ proc ::ck::http::run { HttpUrl args } {
     -cookie dlist [list] \
     -cookpack dlist [list] \
     -norecode flag \
-    -charset str "cp1251" \
+    -charset str "utf-8" \
     -forcecharset flag \
     -return flag \
     -redirects int 2 \

@@ -23,7 +23,7 @@ proc ::recode::init { } {
   cmd register recode_deurl ::recode::run \
     -bind "urlde|code" -force-regexp -bind "de(code)?url" -config "recode" -autousage -doc urlde
 
-  config register -id "defencoding" -type encoding -default cp1251 \
+  config register -id "defencoding" -type encoding -default utf-8 \
     -desc "Кодировка по умолчанию." -access "n" -folder "recode"
 
   cmd doc -alias urlen -link {w2k de64} urlde \

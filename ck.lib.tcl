@@ -9,7 +9,7 @@ namespace eval ::ck {
 
   variable ircnick       "unknown_nick"
   variable ircnet        "unknown_net"
-  variable ircencoding   "cp1251"
+  variable ircencoding   "utf-8"
 
   variable loaded
   variable etimers
